@@ -461,6 +461,19 @@ function getSubRate(hwId) { const hw=_homeworks.find(h=>h.id===hwId); const cls=
 function getStuRate(stuId) { const rel=_homeworks.filter(h=>hwCls(h).length===0||hwCls(h).includes(_students.find(s=>s.id===stuId)?.class)); if(!rel.length) return 0; let c=0; rel.forEach(h=>{if(_submissions[h.id]?.[stuId]?.submitted)c++;}); return Math.round(c/rel.length*100); }
 function getStuAvg(stuId) { let sc=[]; _homeworks.forEach(h=>{const s=_submissions[h.id]?.[stuId];if(s&&s.score!==null&&s.score!==undefined)sc.push(Number(s.score));}); return sc.length?Math.round(sc.reduce((a,b)=>a+b,0)/sc.length):null; }
 function uid() { return crypto.randomUUID ? crypto.randomUUID() : Date.now().toString(36)+Math.random().toString(36).slice(2); }
+// UTC → 한국시간(KST, +9) 변환
+function toKST(utcStr) {
+  if(!utcStr) return '-';
+  const d = new Date(utcStr);
+  const kst = new Date(d.getTime() + 9*60*60*1000);
+  return kst.toISOString().replace('T',' ').slice(0,16);
+}
+function toKSTDate(utcStr) {
+  if(!utcStr) return '-';
+  const d = new Date(utcStr);
+  const kst = new Date(d.getTime() + 9*60*60*1000);
+  return kst.toISOString().slice(0,10);
+}
 function toast(msg, type='success') { const el=document.createElement('div'); el.className='toast-i'; el.innerHTML=(type==='success'?'✅':type==='danger'?'❌':'ℹ️')+' '+msg; document.getElementById('toastC').appendChild(el); setTimeout(()=>el.remove(),3000); }
 function openModal(id){document.getElementById(id).classList.add('show');}
 function closeModal(id){document.getElementById(id).classList.remove('show');}
@@ -594,7 +607,7 @@ function renderPhotos() {
         <td style="font-weight:600">${s.students?.name||'?'}</td>
         <td><span class="sub-badge">${s.students?.class||'?'}반</span></td>
         <td style="font-size:12px">${hw?`[${hw.subject}] ${clsObj?.textbook||''}`:'?'}</td>
-        <td style="font-size:12px;color:#888">${(s.submitted_at||'').replace('T',' ').slice(0,16)}</td>
+        <td style="font-size:12px;color:#888">${toKST(s.submitted_at)}</td>
         <td>
           <div class="photo-thumb-grid">
             ${photos.map((url,i) => renderPhotoItem(url, photos, i)).join('')}
@@ -1169,7 +1182,7 @@ function renderHistory() {
     if(sub?.submitted){
       submitted++;
       if(sub.score!==null&&sub.score!==undefined) scores.push(Number(sub.score));
-      dateStr=(sub.submitted_at||'').replace('T',' ').slice(0,16);
+      dateStr=toKST(sub.submitted_at);
       badge='<span class="bdg-s">✅ 제출</span>';
     }
     const scoreStr=sub?.score!=null?sub.score+'점':'-';
@@ -1288,7 +1301,7 @@ function exportCSV(hwId){
   const hwCls2=hw?hwCls(hw):[];
   const list=_students.filter(s=>(hwCls2.length?hwCls2.includes(s.class):true)&&sub[s.id]?.submitted).sort((a,b)=>a.class.localeCompare(b.class)||a.name.localeCompare(b.name));
   const rows=[['번호','이름','반','제출일','점수','합격여부','메모']];
-  list.forEach((s,i)=>{const info=sub[s.id]||{};rows.push([i+1,s.name,s.class,(info.submitted_at||'').slice(0,10),info.score??'',info.score>=60?'합격':info.score!==null&&info.score!==undefined?'불합격':'-',info.grade_memo||'']);});
+  list.forEach((s,i)=>{const info=sub[s.id]||{};rows.push([i+1,s.name,s.class,toKSTDate(info.submitted_at),info.score??'',info.score>=60?'합격':info.score!==null&&info.score!==undefined?'불합격':'-',info.grade_memo||'']);});
   const blob=new Blob(['\uFEFF'+rows.map(r=>r.join(',')).join('\n')],{type:'text/csv'});
   const url=URL.createObjectURL(blob);
   const a=document.createElement('a');

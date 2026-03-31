@@ -98,6 +98,21 @@
 </head>
 <body>
 
+<!-- Login Script (별도 분리) -->
+<script>
+var TEACHER_PW = '2424';
+function checkPw() {
+  var v = document.getElementById('pwInput').value;
+  if (v === TEACHER_PW) {
+    document.getElementById('loginScreen').style.display = 'none';
+    if (typeof init === 'function') init();
+  } else {
+    document.getElementById('pwErr').style.display = 'block';
+    document.getElementById('pwInput').value = '';
+  }
+}
+</script>
+
 <!-- Login Screen -->
 <div class="login-screen" id="loginScreen">
   <div class="login-box">

@@ -90,6 +90,9 @@
     .review-btn { font-size:12px; padding:4px 10px; }
     .reviewed-badge { background:#dcfce7; color:#166534; padding:2px 8px; border-radius:99px; font-size:11px; font-weight:700; }
     .not-reviewed-badge { background:#fef3c7; color:#92400e; padding:2px 8px; border-radius:99px; font-size:11px; font-weight:700; }
+    /* PDF download link in photo list */
+    .pdf-dl-link { display:inline-flex; align-items:center; gap:5px; background:#f3f4f6; border-radius:6px; padding:6px 10px; text-decoration:none; color:#374151; font-size:12px; border:1px solid #e5e7eb; font-weight:500; }
+    .pdf-dl-link:hover { background:#e5e7eb; color:#111; }
     /* Kakao message */
     .kakao-prev { background:#B2C7D9; border-radius:12px; padding:16px; font-family:'Malgun Gothic',sans-serif; }
     .kakao-bubble { background:#fff; border-radius:12px; padding:12px 14px; max-width:300px; white-space:pre-wrap; word-break:break-word; font-size:13px; line-height:1.8; box-shadow:0 2px 8px rgba(0,0,0,.1); }
@@ -474,7 +477,13 @@ function renderDashboard() {
   const phEl=document.getElementById('dashPhotos');
   const recent=_photoSubs.slice(0,5);
   if(!recent.length){phEl.innerHTML='<div class="empty-st"><span class="empty-ic">📸</span>제출된 사진 없음</div>';}
-  else phEl.innerHTML=recent.map(s=>`<div class="d-flex align-items-center gap-2 px-4 py-2" style="border-bottom:1px solid var(--gray-100)"><span style="font-weight:600;font-size:13px">${s.students?.name||'?'}</span><span class="sub-badge">${s.students?.class||'?'}반</span><span style="flex:1;font-size:12px;color:#888">${(s.submitted_at||'').slice(0,10)}</span><img src="${s.photo_urls[0]}" style="width:36px;height:36px;object-fit:cover;border-radius:6px;cursor:pointer" onclick="openLightbox([${s.photo_urls.map(u=>`'${u}'`).join(',')}],0)"><span class="${s.reviewed?'reviewed-badge':'not-reviewed-badge'}">${s.reviewed?'확인':'미확인'}</span></div>`).join('');
+  else phEl.innerHTML=recent.map(s=>{
+    const firstUrl=s.photo_urls[0];
+    const thumb=/\.pdf(\?|$)/i.test(firstUrl)
+      ? `<a href="${firstUrl}" target="_blank" class="pdf-dl-link" style="font-size:11px">📄 PDF</a>`
+      : `<img src="${firstUrl}" style="width:36px;height:36px;object-fit:cover;border-radius:6px;cursor:pointer" onclick="openLightbox([${s.photo_urls.map(u=>`'${u}'`).join(',')}],0)">`;
+    return `<div class="d-flex align-items-center gap-2 px-4 py-2" style="border-bottom:1px solid var(--gray-100)"><span style="font-weight:600;font-size:13px">${s.students?.name||'?'}</span><span class="sub-badge">${s.students?.class||'?'}반</span><span style="flex:1;font-size:12px;color:#888">${(s.submitted_at||'').slice(0,10)}</span>${thumb}<span class="${s.reviewed?'reviewed-badge':'not-reviewed-badge'}">${s.reviewed?'확인':'미확인'}</span></div>`;
+  }).join('');
   // 반별 제출률 차트
   const colors=['rgba(79,70,229,.7)','rgba(16,185,129,.7)','rgba(245,158,11,.7)','rgba(239,68,68,.7)','rgba(139,92,246,.7)','rgba(236,72,153,.7)'];
   makeChart('chartCls',{type:'bar',data:{labels:classes.map(c=>c+'반'),datasets:[{label:'제출률(%)',data:clsRates,backgroundColor:classes.map((_,i)=>colors[i%colors.length]),borderRadius:6,borderSkipped:false}]},options:{plugins:{legend:{display:false}},scales:{y:{max:100,ticks:{callback:v=>v+'%'}}},responsive:true}});
@@ -497,6 +506,18 @@ function renderDashboard() {
 }
 
 // ---- PHOTOS ----
+function renderPhotoItem(url, allUrls, idx) {
+  const isPdf = /\.pdf(\?|$)/i.test(url);
+  if (isPdf) {
+    const raw = url.split('/').pop().split('?')[0];
+    const fname = decodeURIComponent(raw);
+    const short = fname.length > 16 ? fname.slice(0, 14) + '..' : fname;
+    return `<a href="${url}" target="_blank" class="pdf-dl-link">📄 ${short}</a>`;
+  }
+  const urlsEsc = allUrls.map(u => "'" + u.replace(/'/g,"&#39;") + "'").join(',');
+  return `<img class="photo-thumb" src="${url}" onclick="openLightbox([${urlsEsc}],${idx})">`;
+}
+
 function renderPhotos() {
   const hwFilter = document.getElementById('photoFilterHW').value;
   const clsFilter = document.getElementById('photoFilterClass').value;
@@ -522,7 +543,7 @@ function renderPhotos() {
         <td style="font-size:12px;color:#888">${(s.submitted_at||'').replace('T',' ').slice(0,16)}</td>
         <td>
           <div class="photo-thumb-grid">
-            ${photos.map((url,i)=>`<img class="photo-thumb" src="${url}" onclick="openLightbox([${photos.map(u=>"'"+u+"'").join(',')}],${i})">`).join('')}
+            ${photos.map((url,i) => renderPhotoItem(url, photos, i)).join('')}
           </div>
         </td>
         <td style="font-size:12px;color:#666;max-width:150px">${s.submit_memo||'-'}</td>

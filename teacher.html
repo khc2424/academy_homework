@@ -720,4 +720,12 @@ function exportCSV(hwId){
   const list=_students.filter(s=>(hwCls2.length?hwCls2.includes(s.class):true)&&sub[s.id]?.submitted).sort((a,b)=>a.class.localeCompare(b.class)||a.name.localeCompare(b.name));
   const rows=[['번호','이름','반','제출일','점수','합격여부','메모']];
   list.forEach((s,i)=>{const info=sub[s.id]||{};rows.push([i+1,s.name,s.class,(info.submitted_at||'').slice(0,10),info.score??'',info.score>=60?'합격':info.score!==null&&info.score!==undefined?'불합격':'-',info.grade_memo||'']);});
-  const blob=new Blob(['\uFEFF'+rows.map(r=>r.join(',')).join('\
+  const blob=new Blob(['\uFEFF'+rows.map(r=>r.join(',')).join('\n')],{type:'text/csv'});
+  const url=URL.createObjectURL(blob);
+  const a=document.createElement('a');
+  a.href=url; a.download=`성적_${hw?.subject||'전체'}.csv`; a.click();
+  URL.revokeObjectURL(url);
+}
+</script>
+</body>
+</html>

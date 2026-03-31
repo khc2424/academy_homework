@@ -175,7 +175,17 @@ function checkPw() {
     </div>
     <div class="row g-3">
       <div class="col-md-6"><div class="card-c"><div class="card-h">🕐 최근 숙제</div><div id="dashHW" style="padding:8px 0"></div></div></div>
-      <div class="col-md-6"><div class="card-c"><div class="card-h">📸 최근 사진 제출</div><div id="dashPhotos" style="padding:8px 0"></div></div></div>
+      <div class="col-md-6"><div class="card-c">
+        <div class="card-h d-flex justify-content-between align-items-center">
+          <span>🚨 미제출 현황</span>
+          <div style="display:flex;gap:4px;align-items:center">
+            <button class="btn-o" style="padding:2px 8px;font-size:13px;line-height:1" onclick="dashMissingPrev()">◀</button>
+            <span id="dashMissingDateLbl" style="font-size:12px;font-weight:600;min-width:72px;text-align:center;color:var(--primary)"></span>
+            <button class="btn-o" style="padding:2px 8px;font-size:13px;line-height:1" onclick="dashMissingNext()">▶</button>
+          </div>
+        </div>
+        <div id="dashMissing" style="padding:4px 0;max-height:300px;overflow-y:auto"></div>
+      </div></div>
       <div class="col-md-6"><div class="card-c"><div class="card-h">📊 반별 제출률</div><div style="padding:16px"><canvas id="chartCls" height="220"></canvas></div></div></div>
       <div class="col-md-6"><div class="card-c"><div class="card-h">📅 최근 7일 반별 제출 현황</div><div style="padding:16px"><canvas id="chartWeek" height="220"></canvas></div></div></div>
     </div>
@@ -203,7 +213,7 @@ function checkPw() {
       <button class="btn-p" onclick="openHWModal()">➕ 숙제 등록</button>
     </div>
     <div class="d-flex gap-2 mb-3">
-      <select class="fc" style="width:auto" id="hwFilterSub" onchange="renderHomework()"><option value="">전체 과목</option><option value="수학">수학</option><option value="영어">영어</option><option value="국어">국어</option><option value="과학">과학</option><option value="사회">사회</option><option value="기타">기타</option></select>
+      <select class="fc" style="width:auto" id="hwFilterCls" onchange="renderHomework()"><option value="">전체 반</option></select>
     </div>
     <div id="hwList"></div>
   </div>
@@ -216,7 +226,7 @@ function checkPw() {
       <div class="card-h">
         <span>📚 숙제 선택 (체크하면 바로 메시지 생성)</span>
       </div>
-      <div id="msgHWList" style="padding:12px 20px;max-height:220px;overflow-y:auto">
+      <div id="msgHWList" style="padding:12px 20px;max-height:260px;overflow-y:auto;border-top:1px solid var(--gray-200)">
         <div class="empty-st" style="padding:16px"><span>숙제를 불러오는 중...</span></div>
       </div>
     </div>
@@ -408,11 +418,10 @@ document.getElementById('pwInput').addEventListener('keydown', e=>{ if(e.key==='
 // ---- Init ----
 async function init() {
   await Promise.all([loadStudents(), loadHomeworks()]);
-  await loadSubmissions();
-  await loadPhotos();
-  await loadExtensions();
+  await Promise.all([loadSubmissions(), loadPhotos(), loadExtensions(), loadTemplates()]);
   renderDashboard();
   populateSelects();
+  updateMissingBadge();
 }
 
 // ---- DATA LOADING ----
@@ -483,7 +492,7 @@ function showPage(name) {
 function populateSelects() {
   const classes = getClasses();
   const clsOpts = '<option value="">전체 반</option>' + classes.map(c=>`<option>${c}</option>`).join('');
-  ['stuFilterCls','photoFilterClass','missingClsFilter','histClsSel'].forEach(id=>{ const el=document.getElementById(id); if(el)el.innerHTML=clsOpts; });
+  ['stuFilterCls','photoFilterClass','missingClsFilter','histClsSel','hwFilterCls'].forEach(id=>{ const el=document.getElementById(id); if(el)el.innerHTML=clsOpts; });
   // 미제출 숙제 select
   const cutoff14 = new Date(); cutoff14.setDate(cutoff14.getDate()-14);
   const cut14Str = cutoff14.toISOString().slice(0,10);
@@ -528,17 +537,7 @@ function renderDashboard() {
   const rwEl=document.getElementById('dashHW');
   if(!_homeworks.length){rwEl.innerHTML='<div class="empty-st"><span class="empty-ic">📭</span>숙제 없음</div>';}
   else rwEl.innerHTML=_homeworks.slice(0,5).map(h=>`<div class="d-flex align-items-center gap-2 px-4 py-2" style="border-bottom:1px solid var(--gray-100)"><span style="background:#e0e7ff;color:#3730a3;padding:2px 8px;border-radius:12px;font-size:12px;font-weight:600">${h.subject}</span><span style="flex:1;font-size:13px">${hwCls(h).join('/')}</span>${getDueBadge(h.due_date)}<span style="font-size:12px;color:#999">${getSubRate(h.id)}%</span></div>`).join('');
-  // Recent photos
-  const phEl=document.getElementById('dashPhotos');
-  const recent=_photoSubs.slice(0,5);
-  if(!recent.length){phEl.innerHTML='<div class="empty-st"><span class="empty-ic">📸</span>제출된 사진 없음</div>';}
-  else phEl.innerHTML=recent.map(s=>{
-    const firstUrl=s.photo_urls[0];
-    const thumb=/\.pdf(\?|$)/i.test(firstUrl)
-      ? `<a href="${firstUrl}" target="_blank" class="pdf-dl-link" style="font-size:11px">📄 PDF</a>`
-      : `<img src="${firstUrl}" style="width:36px;height:36px;object-fit:cover;border-radius:6px;cursor:pointer" onclick="openLightbox([${s.photo_urls.map(u=>`'${u}'`).join(',')}],0)">`;
-    return `<div class="d-flex align-items-center gap-2 px-4 py-2" style="border-bottom:1px solid var(--gray-100)"><span style="font-weight:600;font-size:13px">${s.students?.name||'?'}</span><span class="sub-badge">${s.students?.class||'?'}반</span><span style="flex:1;font-size:12px;color:#888">${(s.submitted_at||'').slice(0,10)}</span>${thumb}<span class="${s.reviewed?'reviewed-badge':'not-reviewed-badge'}">${s.reviewed?'확인':'미확인'}</span></div>`;
-  }).join('');
+  renderDashMissing();
   // 반별 제출률 차트
   const colors=['rgba(79,70,229,.7)','rgba(16,185,129,.7)','rgba(245,158,11,.7)','rgba(239,68,68,.7)','rgba(139,92,246,.7)','rgba(236,72,153,.7)'];
   makeChart('chartCls',{type:'bar',data:{labels:classes.map(c=>c+'반'),datasets:[{label:'제출률(%)',data:clsRates,backgroundColor:classes.map((_,i)=>colors[i%colors.length]),borderRadius:6,borderSkipped:false}]},options:{plugins:{legend:{display:false}},scales:{y:{max:100,ticks:{callback:v=>v+'%'}}},responsive:true}});
@@ -743,8 +742,8 @@ async function deleteHW(id) {
 }
 
 function renderHomework() {
-  const sub=document.getElementById('hwFilterSub').value;
-  const list=_homeworks.filter(h=>!sub||h.subject===sub);
+  const cls=document.getElementById('hwFilterCls').value;
+  const list=_homeworks.filter(h=>!cls||hwCls(h).length===0||hwCls(h).includes(cls));
   const el=document.getElementById('hwList');
   if(!list.length){el.innerHTML='<div class="empty-st"><span class="empty-ic">📭</span>등록된 숙제가 없습니다</div>';return;}
   el.innerHTML='<div class="row g-3">'+list.map(h=>{
@@ -1026,6 +1025,77 @@ async function handleExt(id, status) {
   renderExtensions();
 }
 
+// ---- MISSING DATE LOGIC ----
+// 17:30 이전 → 어제 기한 숙제, 17:30 이후 → 오늘 기한 숙제
+function getMissingActiveDate() {
+  const now = new Date();
+  const cutoff = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 17, 30, 0);
+  if (now < cutoff) {
+    const d = new Date(now); d.setDate(d.getDate()-1);
+    return d.toISOString().slice(0,10);
+  }
+  return now.toISOString().slice(0,10);
+}
+
+function updateMissingBadge() {
+  const activeDate = getMissingActiveDate();
+  const hws = _homeworks.filter(h=>h.due_date===activeDate);
+  let cnt = 0;
+  hws.forEach(hw => {
+    (hw.homework_classes||[]).forEach(clsObj => {
+      const stus = _students.filter(s=>s.class===clsObj.class_name);
+      const sub = _submissions[hw.id]||{};
+      cnt += stus.filter(s=>!sub[s.id]?.submitted).length;
+    });
+  });
+  const badge = document.getElementById('missingCount');
+  if(badge){ badge.textContent=cnt; badge.style.display=cnt>0?'inline':'none'; }
+}
+
+let _dashMissingDate = null;
+
+function dashMissingPrev() {
+  const d = new Date(_dashMissingDate+'T00:00:00'); d.setDate(d.getDate()-1);
+  _dashMissingDate = d.toISOString().slice(0,10);
+  renderDashMissing();
+}
+function dashMissingNext() {
+  const d = new Date(_dashMissingDate+'T00:00:00'); d.setDate(d.getDate()+1);
+  _dashMissingDate = d.toISOString().slice(0,10);
+  renderDashMissing();
+}
+
+function renderDashMissing() {
+  if(!_dashMissingDate) _dashMissingDate = getMissingActiveDate();
+  const lbl = document.getElementById('dashMissingDateLbl');
+  if(lbl) lbl.textContent = _dashMissingDate.slice(5).replace('-','/') + ' 기한';
+  const el = document.getElementById('dashMissing'); if(!el) return;
+  const hws = _homeworks.filter(h=>h.due_date===_dashMissingDate);
+  if(!hws.length) { el.innerHTML='<div style="text-align:center;padding:24px;color:#aaa;font-size:13px">해당 날짜에 숙제가 없습니다</div>'; return; }
+  let html=''; let anyMissing=false;
+  hws.forEach(hw => {
+    (hw.homework_classes||[]).forEach(clsObj => {
+      const cls=clsObj.class_name;
+      const stus=_students.filter(s=>s.class===cls);
+      const sub=_submissions[hw.id]||{};
+      const missing=stus.filter(s=>!sub[s.id]?.submitted);
+      anyMissing = anyMissing || missing.length>0;
+      html+=`<div style="padding:8px 16px;border-bottom:1px solid var(--gray-100)">
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:${missing.length?'5px':'0'}">
+          <span class="sub-badge">${cls}반</span>
+          <span style="font-size:13px;flex:1">${clsObj.textbook||''}</span>
+          ${missing.length===0
+            ? '<span style="color:var(--success);font-size:12px;font-weight:700">✅ 전원제출</span>'
+            : `<span style="color:var(--danger);font-size:12px;font-weight:700">미제출 ${missing.length}명</span>`}
+        </div>
+        ${missing.length ? `<div style="display:flex;flex-wrap:wrap;gap:3px">${missing.map(s=>`<span style="background:#fee2e2;color:#991b1b;padding:2px 9px;border-radius:20px;font-size:12px;font-weight:600">${s.name}</span>`).join('')}</div>` : ''}
+      </div>`;
+    });
+  });
+  el.innerHTML = html || '<div style="text-align:center;padding:24px;color:#10b981;font-size:13px;font-weight:600">✅ 전원 제출 완료!</div>';
+  updateMissingBadge();
+}
+
 // ---- MISSING ----
 function loadMissing() {
   populateSelects();
@@ -1069,9 +1139,7 @@ function renderMissing() {
       </div>`;
     });
   });
-  // update badge
-  const badge = document.getElementById('missingCount');
-  if(badge){badge.textContent=totalMissing;badge.style.display=totalMissing>0?'inline':'none';}
+  updateMissingBadge();
   el.innerHTML = html || '<div class="empty-st"><span class="empty-ic">✅</span>미제출 학생이 없습니다!</div>';
 }
 
@@ -1151,21 +1219,28 @@ function renderTemplateGrid() {
     document.getElementById('templateGrid').innerHTML='<div class="empty-st"><span class="empty-ic">👥</span>먼저 학생을 등록해주세요</div>';
     return;
   }
-  const days=[{label:'월',num:1},{label:'화',num:2},{label:'수',num:3},{label:'목',num:4},{label:'금',num:5},{label:'토',num:6}];
-  let html=`<div class="card-c" style="overflow-x:auto"><table class="table tbl mb-0">
-    <thead><tr><th style="min-width:70px">반</th>${days.map(d=>`<th style="min-width:150px">${d.label}요일</th>`).join('')}</tr></thead>
-    <tbody>`;
+  const days=[{label:'월',num:1},{label:'화',num:2},{label:'수',num:3},{label:'목',num:4},{label:'금',num:5},{label:'토',num:6},{label:'일',num:0}];
+  // 반별 카드 형식 (테이블이 너무 넓어지지 않게)
+  let html='';
   classes.forEach(cls=>{
-    html+=`<tr><td><strong>${cls}반</strong></td>`;
-    days.forEach(({num})=>{
+    html+=`<div class="card-c mb-3"><div class="card-h"><strong>${cls}반</strong></div>
+    <div style="overflow-x:auto"><table class="table tbl mb-0">
+      <thead><tr><th style="min-width:50px">요일</th><th style="min-width:140px">교재명</th><th style="min-width:80px">문제수</th><th style="min-width:160px">내용</th><th style="min-width:110px">제출 시간</th></tr></thead>
+      <tbody>`;
+    days.forEach(({label,num})=>{
       const t=_templates[`${cls}_${num}`];
-      html+=`<td><input type="text" class="fc tmpl-tb" data-class="${cls}" data-day="${num}" placeholder="교재명" value="${t?.textbook||''}"></td>`;
+      html+=`<tr>
+        <td><strong>${label}</strong></td>
+        <td><input type="text" class="fc tmpl-tb" data-class="${cls}" data-day="${num}" placeholder="교재명 (없으면 빈칸)" value="${t?.textbook||''}"></td>
+        <td><input type="number" class="fc tmpl-pc" data-class="${cls}" data-day="${num}" placeholder="선택" min="0" value="${t?.problem_count||''}"></td>
+        <td><input type="text" class="fc tmpl-ct" data-class="${cls}" data-day="${num}" placeholder="예: 36~70번 풀기" value="${t?.content||''}"></td>
+        <td><input type="time" class="fc tmpl-tm" data-class="${cls}" data-day="${num}" value="${t?.due_time||'23:59'}"></td>
+      </tr>`;
     });
-    html+=`</tr>`;
+    html+=`</tbody></table></div></div>`;
   });
-  html+=`</tbody></table></div>
-  <div style="margin-top:12px;padding:12px 16px;background:#fffde7;border-radius:10px;font-size:13px;color:#7a5a2a">
-    💡 숙제 등록 모달에서 <strong>📂 고정 숙제 불러오기</strong> 버튼을 누르면 제출 기한의 요일에 맞는 교재가 자동으로 채워집니다.
+  html+=`<div style="padding:12px 16px;background:#fffde7;border-radius:10px;font-size:13px;color:#7a5a2a">
+    💡 숙제 등록 모달에서 <strong>📂 고정 숙제 불러오기</strong>를 누르면 제출 기한 요일에 맞게 자동으로 채워집니다.
   </div>`;
   document.getElementById('templateGrid').innerHTML=html;
 }
@@ -1173,7 +1248,11 @@ function renderTemplateGrid() {
 async function saveTemplates() {
   const rows=[];
   document.querySelectorAll('.tmpl-tb').forEach(inp=>{
-    rows.push({class_name:inp.dataset.class,day_of_week:parseInt(inp.dataset.day),textbook:inp.value.trim()});
+    const cls=inp.dataset.class, day=parseInt(inp.dataset.day);
+    const pc=document.querySelector(`.tmpl-pc[data-class="${cls}"][data-day="${day}"]`)?.value.trim()||'';
+    const ct=document.querySelector(`.tmpl-ct[data-class="${cls}"][data-day="${day}"]`)?.value.trim()||'';
+    const tm=document.querySelector(`.tmpl-tm[data-class="${cls}"][data-day="${day}"]`)?.value||'23:59';
+    rows.push({class_name:cls,day_of_week:day,textbook:inp.value.trim(),problem_count:pc||null,content:ct||null,due_time:tm});
   });
   const {error}=await db.from('homework_templates').upsert(rows,{onConflict:'class_name,day_of_week'});
   if(error){toast('저장 실패: '+error.message,'danger');return;}
@@ -1185,16 +1264,23 @@ function loadTemplateRows() {
   const due=document.getElementById('hwDue').value;
   if(!due){toast('먼저 제출 기한을 선택하세요','info');return;}
   const dt=new Date(due+'T00:00:00');
-  const dayNum=dt.getDay()===0?7:dt.getDay(); // 1=월...6=토, 일(0)→7
+  const dayNum=dt.getDay(); // 0=일,1=월...6=토
   const classes=getClasses();
   document.getElementById('clsRows').innerHTML=''; clsRowCnt2=0;
-  let added=0;
+  let added=0; let firstTime='23:59';
   classes.forEach(cls=>{
     const t=_templates[`${cls}_${dayNum}`];
-    if(t?.textbook){addClsRow({class_name:cls,textbook:t.textbook,content:'',problem_count:''});added++;}
+    if(t?.textbook||t?.content){
+      addClsRow({class_name:cls,textbook:t.textbook||'',content:t.content||'',problem_count:t.problem_count||''});
+      if(added===0&&t.due_time) firstTime=t.due_time;
+      added++;
+    }
   });
   if(!added){toast('해당 요일에 설정된 고정 숙제가 없습니다','info');addClsRow();}
-  else toast(`${added}개 반 교재가 불러와졌습니다`);
+  else{
+    document.getElementById('hwDueTime').value=firstTime;
+    toast(`${added}개 반 숙제가 불러와졌습니다`);
+  }
 }
 
 function exportCSV(hwId){

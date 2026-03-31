@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>NK학원 숙제관리 시스템</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: 'Apple SD Gothic Neo', 'Malgun Gothic', sans-serif;
+      background: #f5f5f5;
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .wrap {
+      text-align: center;
+      padding: 40px 20px;
+    }
+    .logo {
+      font-size: 48px;
+      margin-bottom: 12px;
+    }
+    h1 {
+      font-size: 22px;
+      font-weight: 800;
+      color: #222;
+      margin-bottom: 6px;
+    }
+    p {
+      font-size: 14px;
+      color: #888;
+      margin-bottom: 40px;
+    }
+    .cards {
+      display: flex;
+      gap: 20px;
+      justify-content: center;
+      flex-wrap: wrap;
+    }
+    .card {
+      background: #fff;
+      border-radius: 20px;
+      padding: 36px 32px;
+      width: 200px;
+      box-shadow: 0 4px 20px rgba(0,0,0,.08);
+      text-decoration: none;
+      transition: transform .2s, box-shadow .2s;
+      display: block;
+    }
+    .card:hover {
+      transform: translateY(-4px);
+      box-shadow: 0 8px 30px rgba(0,0,0,.14);
+    }
+    .card-icon { font-size: 48px; margin-bottom: 14px; }
+    .card-title {
+      font-size: 16px;
+      font-weight: 700;
+      color: #222;
+      margin-bottom: 6px;
+    }
+    .card-desc {
+      font-size: 12px;
+      color: #999;
+      line-height: 1.5;
+    }
+    .card.student { border-top: 4px solid #FEE500; }
+    .card.teacher { border-top: 4px solid #4f46e5; }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="logo">📚</div>
+    <h1>NK학원 숙제관리 시스템</h1>
+    <p>아래에서 역할을 선택해주세요</p>
+    <div class="cards">
+      <a class="card student" href="student.html">
+        <div class="card-icon">🙋</div>
+        <div class="card-title">학생</div>
+        <div class="card-desc">숙제 사진 제출하기</div>
+      </a>
+      <a class="card teacher" href="teacher.html">
+        <div class="card-icon">👩‍🏫</div>
+        <div class="card-title">선생님</div>
+        <div class="card-desc">숙제 관리 대시보드</div>
+      </a>
+    </div>
+  </div>
+</body>
+</html>

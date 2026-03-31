@@ -459,4 +459,14 @@ function resetForm() {
   selectedPhotos = [];
   renderPhotoGrid();
   document.getElementById('submitBtn').disabled = false;
-  if (selectedPhotos.length < 20) document.getElementById('upload
+  if (selectedPhotos.length < 20) document.getElementById('uploadArea').style.display = 'block';
+  updateHomeworkSelect('');
+}
+
+// ============================================================
+//  START
+// ============================================================
+init();
+</script>
+</body>
+</html>

@@ -410,7 +410,7 @@ function showPage(name) {
   if(name==='photos') renderPhotos();
   if(name==='homework') renderHomework();
   if(name==='students') renderStudents();
-  if(name==='message'){window._msgStudents={};renderMessages();}
+  if(name==='message'){window._msgStudents=window._msgStudents||{};renderMessages();}
   if(name==='grades') renderGrades();
 }
 
@@ -554,15 +554,21 @@ function addClsRow(data) {
   el.innerHTML=`
   <datalist id="${dlId}">${classes.map(cls=>`<option value="${cls}">`).join('')}</datalist>
   <div class="d-flex justify-content-between mb-2"><span style="font-size:13px;font-weight:600;color:var(--primary)">🏫 반 정보</span><button type="button" style="background:none;border:none;cursor:pointer;color:#ef4444;font-size:16px" onclick="document.getElementById('cr_${c}').remove()">✖</button></div>
-  <div class="row g-2 align-items-center">
+  <div class="row g-2 align-items-center mb-1">
     <div class="col-3"><input list="${dlId}" type="text" class="fc cr-n" placeholder="반 이름" value="${data?.class_name||''}"></div>
-    <div class="col-3"><input type="text" class="fc cr-t" placeholder="교재명" value="${data?.textbook||''}"></div>
-    <div class="col-2"><input type="number" class="fc cr-ps" placeholder="시작P" min="0" value="${startP}" style="text-align:center"></div>
-    <div class="col-1" style="text-align:center;font-weight:700;color:#666;padding:0">p~</div>
-    <div class="col-2"><input type="number" class="fc cr-pe" placeholder="끝P" min="0" value="${endP}" style="text-align:center"></div>
-    <div class="col-1" style="font-size:13px;color:#888;padding-left:2px">p</div>
-    <div class="col-12"><textarea class="fc cr-c" placeholder="상세 내용 (예: 풀기, 오답노트 작성 등)" rows="3" style="resize:vertical;margin-top:6px">${data?.content||''}</textarea></div>
-  </div>`;
+    <div class="col-4"><input type="text" class="fc cr-t" placeholder="교재명" value="${data?.textbook||''}"></div>
+    <div class="col-3"><input type="number" class="fc cr-p" placeholder="문제수 (선택)" min="0" value="${data?.problem_count||''}"><div style="font-size:11px;color:#aaa;margin-top:2px">없으면 빈칸</div></div>
+    <div class="col-2" style="font-size:12px;color:#999;text-align:center">↕ 문제수</div>
+  </div>
+  <div class="row g-1 align-items-center mb-1">
+    <div class="col-auto" style="font-size:12px;color:#888;padding-right:4px">페이지:</div>
+    <div class="col-2"><input type="number" class="fc cr-ps" placeholder="시작" min="0" value="${startP}" style="text-align:center;padding:6px 4px"></div>
+    <div class="col-auto" style="font-weight:700;color:#666">p ~</div>
+    <div class="col-2"><input type="number" class="fc cr-pe" placeholder="끝" min="0" value="${endP}" style="text-align:center;padding:6px 4px"></div>
+    <div class="col-auto" style="color:#666">p</div>
+    <div class="col-auto" style="font-size:11px;color:#aaa">↕ 페이지 범위 (선택)</div>
+  </div>
+  <div class="col-12"><textarea class="fc cr-c" placeholder="상세 내용 (예: 36-70번 풀기, 오답노트 작성 등)" rows="2" style="resize:vertical">${data?.content||''}</textarea></div>`;
   document.getElementById('clsRows').appendChild(el);
 }
 
@@ -610,7 +616,7 @@ async function saveHW() {
   const dueDate=document.getElementById('hwDue').value;
   const dueTime=document.getElementById('hwDueTime').value||'12:00';
   if(!assignDate||!dueDate){toast('날짜를 입력해주세요','danger');return;}
-  const rows=[...document.querySelectorAll('#clsRows .class-row')].map(r=>{const ps=r.querySelector('.cr-ps').value.trim();const pe=r.querySelector('.cr-pe').value.trim();const prob=ps&&pe?`${ps}~${pe}`:(ps||pe||'');return{class_name:r.querySelector('.cr-n').value.trim(),textbook:r.querySelector('.cr-t').value.trim(),problem_count:prob,content:r.querySelector('.cr-c').value.trim()};}).filter(r=>r.class_name||r.textbook);
+  const rows=[...document.querySelectorAll('#clsRows .class-row')].map(r=>{const ps=r.querySelector('.cr-ps')?.value.trim()||'';const pe=r.querySelector('.cr-pe')?.value.trim()||'';const pc=r.querySelector('.cr-p')?.value.trim()||'';let ct=r.querySelector('.cr-c').value.trim();if(!ct&&ps&&pe)ct=`${ps}~${pe}번`;return{class_name:r.querySelector('.cr-n').value.trim(),textbook:r.querySelector('.cr-t').value.trim(),problem_count:pc,content:ct};}).filter(r=>r.class_name||r.textbook);
   if(!rows.length){toast('반 정보를 입력해주세요','danger');return;}
   const editId=document.getElementById('hwEditId').value;
   try {
@@ -683,21 +689,21 @@ function renderMsgHWList() {
     </label>`).join('');
 }
 
-function generateCombinedMsg(className, hwList, students) {
-  // hwList: [{hw, clsObj}, ...], students: [{name,...}, ...]
+function generateCombinedMsg(className, hwList) {
+  // hwList: [{hw, clsObj, students:[{name,...}]}, ...]  — students per homework block
   if(!hwList.length)return'';
   const first=hwList[0];
   const header=`[${className}반_${fmtHdr(first.hw.assign_date)} 숙제 안내]`;
-  const blocks=hwList.map(({hw,clsObj})=>{
+  const blocks=hwList.map(({hw,clsObj,students})=>{
     const tb=clsObj.textbook||''; const pc=clsObj.problem_count; const ct=clsObj.content||'';
-    const prob=pc?` (${pc}p)`:'';
+    const prob=pc?` (${pc}문제)`:'';
     const time=hw.due_time||'12:00'; const hour=parseInt(time.split(':')[0]);
     const timeStr=hour>=12?`밤${hour===12?12:hour-12}시`:`오전${hour}시`;
-    return `▶ 교재 : ${tb}${prob}\n⏭ ${ct}\n★ 기한 : ${fmtDue(hw.due_date)} ${timeStr}`;
+    const stuLine=(students&&students.length)?`\n■ ${students.map(s=>s.name).join(', ')}`:'';
+    return `▶ 교재 : ${tb}${prob}\n⏭ ${ct}\n★ 기한 : ${fmtDue(hw.due_date)} ${timeStr}${stuLine}`;
   }).join('\n\n');
-  const stuLine=(students&&students.length)?`\n\n📋 제출 인원 (${students.length}명)\n${students.map(s=>s.name).join(', ')}`:'';
   const footer=`\n\n———————학생여러분께———————\n✓ 교재 노트풀이 하시기 바랍니다.\n✓ 오답노트 작성시 대충 하지 마시고 모르는 문제를 제대로 알아갈 수 있게 작성하시기 바랍니다.\n✓ 숙제 제출시 채점까지 완료해서 제출하시기 바랍니다.\n———————학부모님께————————\n✓ 학습 독려했음에도 숙제를 제대로 하지 않는 학생은 저에게 연락 부탁드립니다.\n✓ 숙제 연장은 학부모님께서만 가능합니다.\n✓ 숙제 연장은 담당선생님께 해주세요.`;
-  return `${header}\n${blocks}${stuLine}${footer}`;
+  return `${header}\n${blocks}${footer}`;
 }
 
 function renderMessages() {
@@ -716,37 +722,57 @@ function renderMessages() {
   });
   const classes=Object.keys(window._classMap);
   if(!classes.length){container.innerHTML='<div class="empty-st"><span class="empty-ic">⚠️</span>반 정보가 없습니다</div>';return;}
-  // 반별 학생 초기 선택 상태 유지
+  // 숙제별 학생 초기 선택 상태 초기화 (없는 것만)
   if(!window._msgStudents)window._msgStudents={};
   classes.forEach(cls=>{
-    if(!window._msgStudents[cls]){
-      window._msgStudents[cls]=new Set(_students.filter(s=>s.class===cls).map(s=>s.id));
-    }
+    (_students.filter(s=>s.class===cls)).forEach(s=>{/* ensure structure */});
+    window._classMap[cls].forEach(({hw})=>{
+      if(!window._msgStudents[hw.id]){
+        window._msgStudents[hw.id]=new Set(_students.filter(s=>s.class===cls).map(s=>s.id));
+      }
+    });
   });
-  // 메시지 생성
+  // 메시지 생성 (숙제별 학생 포함)
   window._msgs={};
   classes.forEach(cls=>{
-    const selStudents=_students.filter(s=>s.class===cls&&window._msgStudents[cls]?.has(s.id));
-    window._msgs[cls]=generateCombinedMsg(cls,window._classMap[cls],selStudents);
+    const hwListWithStu=window._classMap[cls].map(item=>{
+      const allInCls=_students.filter(s=>s.class===cls);
+      const selStu=allInCls.filter(s=>window._msgStudents[item.hw.id]?.has(s.id));
+      return {...item,students:selStu};
+    });
+    window._msgs[cls]=generateCombinedMsg(cls,hwListWithStu);
   });
+  // UI 렌더링
   container.innerHTML=`<div class="row g-3">${classes.map(cls=>{
+    const clsSafe=cls.replace(/[^a-zA-Z0-9]/g,'_');
     const classStudents=_students.filter(s=>s.class===cls);
-    const stuCheckboxes=classStudents.length?`
-      <div style="margin-bottom:12px;padding:10px 12px;background:#f9fafb;border-radius:8px;border:1px solid var(--gray-200)">
-        <div style="font-size:12px;font-weight:600;color:#555;margin-bottom:8px">👥 제출 대상 학생 <span style="font-weight:400;color:#aaa">(체크 해제하면 메시지에서 제외)</span></div>
-        <div style="display:flex;flex-wrap:wrap;gap:6px 14px">${classStudents.map(s=>`<label style="display:flex;align-items:center;gap:5px;font-size:13px;cursor:pointer"><input type="checkbox" data-cls="${cls}" data-sid="${s.id}" onchange="updateClassMsg('${cls}')" ${window._msgStudents[cls]?.has(s.id)?'checked':''}>${s.name}</label>`).join('')}</div>
-      </div>`:'<div style="font-size:12px;color:#aaa;margin-bottom:10px;padding:8px;background:#f9fafb;border-radius:8px">등록된 학생 없음 (학생 관리에서 추가하세요)</div>';
-    return `<div class="col-md-6"><div class="card-c"><div class="card-h d-flex justify-content-between align-items-center"><span>📌 ${cls}반 (${window._classMap[cls].length}개 숙제)</span><button class="btn-kakao" id="cpbtn_${cls.replace(/[^a-zA-Z0-9]/g,'_')}" onclick="copyMsgCls('${cls}')">📋 복사</button></div><div style="padding:16px">${stuCheckboxes}<div class="kakao-prev"><div style="font-size:12px;color:#555;margin-bottom:4px;font-weight:600">선생님</div><div class="kakao-bubble" id="msgbubble_${cls.replace(/[^a-zA-Z0-9]/g,'_')}">${escH(window._msgs[cls])}</div></div></div></div></div>`;
+    // 숙제별 학생 체크박스 패널
+    const hwPanels=window._classMap[cls].map(({hw,clsObj})=>{
+      const hwId=hw.id;
+      const tb=clsObj.textbook||''; const pc=clsObj.problem_count; const ct=clsObj.content||'';
+      const prob=pc?` (${pc}문제)`:'';
+      const hwLabel=`${tb}${prob}${ct?' — '+ct:''}`;
+      const stuCbs=classStudents.length
+        ?classStudents.map(s=>`<label style="display:flex;align-items:center;gap:4px;font-size:12px;cursor:pointer;white-space:nowrap"><input type="checkbox" data-hwid="${hwId}" data-sid="${s.id}" onchange="updateHWStudents('${cls}')" ${window._msgStudents[hwId]?.has(s.id)?'checked':''}>${s.name}</label>`).join('')
+        :'<span style="font-size:12px;color:#aaa">학생 없음</span>';
+      return `<div style="border:1px solid var(--gray-200);border-radius:8px;padding:9px 11px;margin-bottom:7px"><div style="font-size:12px;font-weight:600;color:var(--primary);margin-bottom:6px">📖 ${hwLabel}</div><div style="display:flex;flex-wrap:wrap;gap:5px 12px">${stuCbs}</div></div>`;
+    }).join('');
+    const stuSection=`<div style="margin-bottom:12px"><div style="font-size:12px;font-weight:600;color:#555;margin-bottom:6px">👥 숙제별 제출 학생 설정</div>${hwPanels}</div>`;
+    return `<div class="col-md-6"><div class="card-c"><div class="card-h d-flex justify-content-between align-items-center"><span>📌 ${cls}반 (${window._classMap[cls].length}개 숙제)</span><button class="btn-kakao" id="cpbtn_${clsSafe}" onclick="copyMsgCls('${cls}')">📋 복사</button></div><div style="padding:16px">${stuSection}<div class="kakao-prev"><div style="font-size:12px;color:#555;margin-bottom:4px;font-weight:600">선생님</div><div class="kakao-bubble" id="msgbubble_${clsSafe}">${escH(window._msgs[cls])}</div></div></div></div></div>`;
   }).join('')}</div>`;
 }
 
-function updateClassMsg(cls) {
-  if(!window._msgStudents)window._msgStudents={};
-  // 체크된 학생 ID 수집
-  const cbs=document.querySelectorAll(`input[data-cls="${cls}"]`);
-  window._msgStudents[cls]=new Set([...cbs].filter(cb=>cb.checked).map(cb=>cb.dataset.sid));
-  const selStudents=_students.filter(s=>s.class===cls&&window._msgStudents[cls].has(s.id));
-  const msg=generateCombinedMsg(cls,window._classMap?.[cls]||[],selStudents);
+function updateHWStudents(cls) {
+  if(!window._classMap||!window._classMap[cls])return;
+  const hwListWithStu=window._classMap[cls].map(item=>{
+    const hwId=item.hw.id;
+    const allInCls=_students.filter(s=>s.class===cls);
+    const cbs=document.querySelectorAll(`input[data-hwid="${hwId}"]`);
+    window._msgStudents[hwId]=new Set([...cbs].filter(cb=>cb.checked).map(cb=>cb.dataset.sid));
+    const selStu=allInCls.filter(s=>window._msgStudents[hwId].has(s.id));
+    return {...item,students:selStu};
+  });
+  const msg=generateCombinedMsg(cls,hwListWithStu);
   window._msgs[cls]=msg;
   const clsSafe=cls.replace(/[^a-zA-Z0-9]/g,'_');
   const bubble=document.getElementById('msgbubble_'+clsSafe);

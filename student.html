@@ -341,12 +341,14 @@ async function loadClasses() {
 
 // Load homeworks
 async function loadHomeworks() {
-  const today = new Date().toISOString().slice(0,10);
+  // 14일 전부터 미래까지 — 최근 숙제도 계속 보이게
+  const cutoff = new Date(); cutoff.setDate(cutoff.getDate() - 14);
+  const cutoffStr = cutoff.toISOString().slice(0,10);
   const { data, error } = await db
     .from('homeworks')
     .select('*, homework_classes(*)')
-    .gte('due_date', today)
-    .order('due_date');
+    .gte('due_date', cutoffStr)
+    .order('due_date', {ascending: false});
   if (error || !data) return;
   window._homeworks = data;
   updateHomeworkSelect();
@@ -580,9 +582,9 @@ async function submitHomework() {
         if (inErr) throw inErr;
       }
       setProgress(100, '완료!');
-      document.getElementById('successIcon').textContent = '🎉';
-      document.getElementById('successTitle').textContent = '제출 완료!';
-      document.getElementById('successMsg').innerHTML = `<strong>${studentName}</strong> 학생의 숙제가<br>선생님께 전달되었습니다.<br>고생했어요! 😊`;
+      document.getElementById('successIcon').textContent = '✅';
+      document.getElementById('successTitle').textContent = '제출되었습니다!';
+      document.getElementById('successMsg').innerHTML = `<strong>${studentName}</strong> 학생의 숙제가 선생님께 전달되었습니다.<br><br><span style="display:inline-block;background:#fee2e2;border-radius:10px;padding:8px 14px;font-size:13px;color:#991b1b;font-weight:700">⚠️ 채점까지 완료해야 숙제 인정!</span>`;
     }
     setTimeout(showSuccess, 500);
   } catch (err) {

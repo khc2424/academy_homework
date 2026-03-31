@@ -148,6 +148,9 @@ function checkPw() {
     <button class="nav-btn" onclick="showPage('homework')">📚 숙제 관리</button>
     <button class="nav-btn" onclick="showPage('message')">💬 카톡 메시지</button>
     <button class="nav-btn" onclick="showPage('extensions')">📅 연장 신청 <span id="extCount" class="new-badge" style="display:none">0</span></button>
+    <button class="nav-btn" onclick="showPage('missing')">🚨 미제출 현황 <span id="missingCount" class="new-badge" style="display:none">0</span></button>
+    <button class="nav-btn" onclick="showPage('history')">📋 학생 이력</button>
+    <button class="nav-btn" onclick="showPage('templates')">🔁 고정 숙제</button>
     <button class="nav-btn" onclick="showPage('students')">👥 학생 관리</button>
   </nav>
   <div style="position:absolute;bottom:16px;left:0;right:0;padding:0 8px">
@@ -163,10 +166,12 @@ function checkPw() {
     <div class="page-title">📊 대시보드</div>
     <div class="page-sub">전체 현황을 한눈에 확인하세요</div>
     <div class="row g-3 mb-4">
-      <div class="col-md-3"><div class="stat-card"><div class="d-flex align-items-center gap-3"><div class="stat-icon" style="background:#e0e7ff">👥</div><div><div class="stat-v" id="dTotalStu">-</div><div class="stat-l">전체 학생</div></div></div></div></div>
-      <div class="col-md-3"><div class="stat-card"><div class="d-flex align-items-center gap-3"><div class="stat-icon" style="background:#dcfce7">📚</div><div><div class="stat-v" id="dTotalHW">-</div><div class="stat-l">등록된 숙제</div></div></div></div></div>
-      <div class="col-md-3"><div class="stat-card"><div class="d-flex align-items-center gap-3"><div class="stat-icon" style="background:#fce7f3">📋</div><div><div class="stat-v" id="dSubmitRate">-</div><div class="stat-l">평균 제출률</div></div></div></div></div>
-      <div class="col-md-3"><div class="stat-card"><div class="d-flex align-items-center gap-3"><div class="stat-icon" style="background:#fef9c3">📸</div><div><div class="stat-v" id="dNewPhotos">-</div><div class="stat-l">미확인 사진</div></div></div></div></div>
+      <div class="col-md-2"><div class="stat-card"><div class="d-flex align-items-center gap-3"><div class="stat-icon" style="background:#e0e7ff">👥</div><div><div class="stat-v" id="dTotalStu">-</div><div class="stat-l">전체 학생</div></div></div></div></div>
+      <div class="col-md-2"><div class="stat-card"><div class="d-flex align-items-center gap-3"><div class="stat-icon" style="background:#dcfce7">📚</div><div><div class="stat-v" id="dTotalHW">-</div><div class="stat-l">등록된 숙제</div></div></div></div></div>
+      <div class="col-md-2"><div class="stat-card"><div class="d-flex align-items-center gap-3"><div class="stat-icon" style="background:#fce7f3">📋</div><div><div class="stat-v" id="dSubmitRate">-</div><div class="stat-l">평균 제출률</div></div></div></div></div>
+      <div class="col-md-2"><div class="stat-card"><div class="d-flex align-items-center gap-3"><div class="stat-icon" style="background:#fef9c3">📸</div><div><div class="stat-v" id="dNewPhotos">-</div><div class="stat-l">미확인 사진</div></div></div></div></div>
+      <div class="col-md-2"><div class="stat-card" style="cursor:pointer" onclick="showPage('extensions')"><div class="d-flex align-items-center gap-3"><div class="stat-icon" style="background:#fff0f0">📅</div><div><div class="stat-v" id="dPendingExt" style="color:var(--danger)">-</div><div class="stat-l">연장 신청</div></div></div></div></div>
+      <div class="col-md-2"><div class="stat-card" style="cursor:pointer" onclick="showPage('photos')"><div class="d-flex align-items-center gap-3"><div class="stat-icon" style="background:#f0fdf4">✅</div><div><div class="stat-v" id="dTotalSub" style="color:var(--success)">-</div><div class="stat-l">제출 인원</div></div></div></div></div>
     </div>
     <div class="row g-3">
       <div class="col-md-6"><div class="card-c"><div class="card-h">🕐 최근 숙제</div><div id="dashHW" style="padding:8px 0"></div></div></div>
@@ -234,6 +239,38 @@ function checkPw() {
     <div id="extList"></div>
   </div>
 
+  <!-- MISSING -->
+  <div class="page" id="page-missing">
+    <div class="page-title">🚨 미제출 현황</div>
+    <div class="page-sub">기한 내 미제출 학생을 반별로 확인합니다</div>
+    <div class="d-flex gap-2 mb-3 flex-wrap align-items-center">
+      <select class="fc" style="width:auto;min-width:260px" id="missingHWSel" onchange="renderMissing()"><option value="">전체 최근 14일 숙제</option></select>
+      <select class="fc" style="width:auto" id="missingClsFilter" onchange="renderMissing()"><option value="">전체 반</option></select>
+      <button class="btn-o" style="margin-left:auto" onclick="loadMissing()">🔄 새로고침</button>
+    </div>
+    <div id="missingList"></div>
+  </div>
+
+  <!-- HISTORY -->
+  <div class="page" id="page-history">
+    <div class="page-title">📋 학생 이력</div>
+    <div class="page-sub">학생별 제출 현황과 점수 이력을 한눈에 확인합니다</div>
+    <div class="d-flex gap-2 mb-3 flex-wrap">
+      <select class="fc" style="width:auto" id="histClsSel" onchange="filterHistStudents()"><option value="">전체 반</option></select>
+      <select class="fc" style="width:auto;min-width:160px" id="histStuSel" onchange="renderHistory()"><option value="">학생 선택</option></select>
+    </div>
+    <div id="histContent"><div class="empty-st"><span class="empty-ic">📋</span>학생을 선택하세요</div></div>
+  </div>
+
+  <!-- TEMPLATES -->
+  <div class="page" id="page-templates">
+    <div class="d-flex justify-content-between align-items-center mb-1">
+      <div><div class="page-title">🔁 고정 숙제 설정</div><div class="page-sub">반별 요일마다 교재를 미리 설정해두세요. 숙제 등록 시 불러올 수 있습니다</div></div>
+      <button class="btn-p" onclick="saveTemplates()">💾 저장</button>
+    </div>
+    <div id="templateGrid"></div>
+  </div>
+
   <!-- STUDENTS -->
   <div class="page" id="page-students">
     <div class="d-flex justify-content-between align-items-center mb-1">
@@ -281,11 +318,14 @@ function checkPw() {
       <div class="row g-2 mb-3">
         <div class="col-4"><label style="font-size:13px;font-weight:500;color:#666;display:block;margin-bottom:4px">공지 날짜 *</label><input type="date" class="fc" id="hwAssign"></div>
         <div class="col-5"><label style="font-size:13px;font-weight:500;color:#666;display:block;margin-bottom:4px">제출 기한 *</label><input type="date" class="fc" id="hwDue"></div>
-        <div class="col-3"><label style="font-size:13px;font-weight:500;color:#666;display:block;margin-bottom:4px">제출 시간 *</label><input type="time" class="fc" id="hwDueTime" value="12:00"></div>
+        <div class="col-3"><label style="font-size:13px;font-weight:500;color:#666;display:block;margin-bottom:4px">제출 시간 *</label><input type="time" class="fc" id="hwDueTime" value="23:59"></div>
       </div>
       <div class="d-flex justify-content-between align-items-center mb-2">
         <label style="font-size:14px;font-weight:600;color:var(--primary)">🏫 반별 숙제 내용</label>
-        <button class="btn-o" style="font-size:12px;padding:5px 12px" onclick="addClsRow()">+ 반 추가</button>
+        <div class="d-flex gap-2">
+          <button class="btn-o" style="font-size:12px;padding:5px 12px;background:#fffde7;border-color:#FEE500" onclick="loadTemplateRows()">📂 고정 숙제 불러오기</button>
+          <button class="btn-o" style="font-size:12px;padding:5px 12px" onclick="addClsRow()">+ 반 추가</button>
+        </div>
       </div>
       <div id="clsRows"></div>
     </div>
@@ -434,13 +474,23 @@ function showPage(name) {
   if(name==='message'){window._msgStudents=window._msgStudents||{};renderMessages();}
   if(name==='extensions'){loadExtensions().then(renderExtensions);}
   if(name==='grades') renderGrades();
+  if(name==='missing') loadMissing();
+  if(name==='history') { filterHistStudents(); }
+  if(name==='templates') loadTemplates();
 }
 
 // ---- POPULATE SELECTS ----
 function populateSelects() {
   const classes = getClasses();
   const clsOpts = '<option value="">전체 반</option>' + classes.map(c=>`<option>${c}</option>`).join('');
-  ['stuFilterCls','photoFilterClass'].forEach(id=>{ const el=document.getElementById(id); if(el)el.innerHTML=clsOpts; });
+  ['stuFilterCls','photoFilterClass','missingClsFilter','histClsSel'].forEach(id=>{ const el=document.getElementById(id); if(el)el.innerHTML=clsOpts; });
+  // 미제출 숙제 select
+  const cutoff14 = new Date(); cutoff14.setDate(cutoff14.getDate()-14);
+  const cut14Str = cutoff14.toISOString().slice(0,10);
+  const missingHWs = _homeworks.filter(h => h.due_date >= cut14Str);
+  const msel = document.getElementById('missingHWSel');
+  if(msel) msel.innerHTML = '<option value="">전체 최근 14일 숙제</option>' +
+    missingHWs.map(h=>`<option value="${h.id}">[${hwCls(h).join('/')}반] ${h.due_date}</option>`).join('');
   const phHWOpts = '<option value="">전체 숙제</option>' + _homeworks.map(h=>`<option value="${h.id}">[${h.subject}] ${hwCls(h).join('/')} (${h.due_date})</option>`).join('');
   const photoEl=document.getElementById('photoFilterHW'); if(photoEl)photoEl.innerHTML=phHWOpts;
   renderMsgHWList();
@@ -465,6 +515,11 @@ function getClassRate(cls) {
 function renderDashboard() {
   document.getElementById('dTotalStu').textContent = _students.length;
   document.getElementById('dTotalHW').textContent = _homeworks.length;
+  const pendingExt = _extensions.filter(e=>e.status==='pending').length;
+  document.getElementById('dPendingExt').textContent = pendingExt;
+  let totalSub = 0;
+  Object.values(_submissions).forEach(h => Object.values(h).forEach(s => { if(s.submitted) totalSub++; }));
+  document.getElementById('dTotalSub').textContent = totalSub + '건';
   const classes = getClasses();
   const clsRates = classes.map(c => getClassRate(c));
   const avgRate = clsRates.length ? Math.round(clsRates.reduce((a,b)=>a+b,0)/clsRates.length) : 0;
@@ -616,13 +671,13 @@ function getDefaultDue() {
   const now = new Date();
   const day = now.getDay(); // 0=일,1=월,2=화,3=수,4=목,5=금,6=토
   let addDays, time;
-  if(day===1){addDays=1;time='12:00';}      // 월 → 화 12시
-  else if(day===2){addDays=1;time='12:00';} // 화 → 수 12시
-  else if(day===3){addDays=1;time='12:00';} // 수 → 목 12시
-  else if(day===4){addDays=2;time='10:00';} // 목 → 토 10시
-  else if(day===5){addDays=1;time='10:00';} // 금 → 토 10시
-  else if(day===6){addDays=1;time='10:00';} // 토 → 일 10시
-  else{addDays=1;time='12:00';}             // 일 → 월 12시
+  if(day===1){addDays=1;time='23:59';}      // 월 → 화 밤12시
+  else if(day===2){addDays=1;time='23:59';} // 화 → 수 밤12시
+  else if(day===3){addDays=1;time='23:59';} // 수 → 목 밤12시
+  else if(day===4){addDays=2;time='23:59';} // 목 → 토 밤12시
+  else if(day===5){addDays=1;time='23:59';} // 금 → 토 밤12시
+  else if(day===6){addDays=1;time='23:59';} // 토 → 일 밤12시
+  else{addDays=1;time='23:59';}             // 일 → 월 밤12시
   const due = new Date(now.getTime() + addDays*86400000);
   return { date: due.toISOString().slice(0,10), time };
 }
@@ -969,6 +1024,177 @@ async function handleExt(id, status) {
   toast(status==='approved'?'✅ 승인되었습니다':'❌ 거절되었습니다', status==='approved'?'success':'info');
   await loadExtensions();
   renderExtensions();
+}
+
+// ---- MISSING ----
+function loadMissing() {
+  populateSelects();
+  renderMissing();
+}
+
+function renderMissing() {
+  const hwFilter = document.getElementById('missingHWSel').value;
+  const clsFilter = document.getElementById('missingClsFilter').value;
+  const el = document.getElementById('missingList');
+  const cutoff = new Date(); cutoff.setDate(cutoff.getDate()-14);
+  const cutStr = cutoff.toISOString().slice(0,10);
+  const hws = hwFilter
+    ? _homeworks.filter(h=>h.id===hwFilter)
+    : _homeworks.filter(h=>h.due_date >= cutStr);
+  const classes = clsFilter ? [clsFilter] : getClasses();
+  let html = '';
+  let totalMissing = 0;
+  classes.forEach(cls => {
+    const classStu = _students.filter(s=>s.class===cls);
+    const classHWs = hws.filter(h=>hwCls(h).length===0||hwCls(h).includes(cls));
+    if(!classHWs.length||!classStu.length) return;
+    classHWs.forEach(hw => {
+      const sub = _submissions[hw.id]||{};
+      const missing = classStu.filter(s=>!sub[s.id]?.submitted);
+      const clsObj = (hw.homework_classes||[]).find(c=>c.class_name===cls)||(hw.homework_classes||[])[0];
+      const tb = clsObj?.textbook||hw.subject||'-';
+      totalMissing += missing.length;
+      const isOverdue = hw.due_date < new Date().toISOString().slice(0,10);
+      html += `<div class="card-c mb-3">
+        <div class="card-h d-flex justify-content-between align-items-center">
+          <span><span class="sub-badge">${cls}반</span> &nbsp;<strong>${tb}</strong></span>
+          <span style="font-size:12px;color:#888">${hw.due_date} 기한 ${isOverdue?'<span style="color:var(--danger);font-weight:600">마감초과</span>':getDueBadge(hw.due_date)}&nbsp;·&nbsp;미제출 <strong style="color:var(--danger)">${missing.length}</strong>/${classStu.length}명</span>
+        </div>
+        <div style="padding:14px 20px">
+          ${missing.length===0
+            ? '<span style="color:var(--success);font-weight:700">✅ 전원 제출 완료!</span>'
+            : missing.map(s=>`<span style="display:inline-block;background:#fee2e2;color:#991b1b;padding:4px 12px;border-radius:20px;font-size:13px;font-weight:600;margin:3px">${s.name}</span>`).join('')
+          }
+        </div>
+      </div>`;
+    });
+  });
+  // update badge
+  const badge = document.getElementById('missingCount');
+  if(badge){badge.textContent=totalMissing;badge.style.display=totalMissing>0?'inline':'none';}
+  el.innerHTML = html || '<div class="empty-st"><span class="empty-ic">✅</span>미제출 학생이 없습니다!</div>';
+}
+
+// ---- HISTORY ----
+function filterHistStudents() {
+  const cls = document.getElementById('histClsSel').value;
+  const sel = document.getElementById('histStuSel');
+  const stus = cls ? _students.filter(s=>s.class===cls) : _students;
+  sel.innerHTML = '<option value="">학생 선택</option>' +
+    stus.map(s=>`<option value="${s.id}">[${s.class}반] ${s.name}</option>`).join('');
+  renderHistory();
+}
+
+function renderHistory() {
+  const stuId = document.getElementById('histStuSel').value;
+  const el = document.getElementById('histContent');
+  if(!stuId){el.innerHTML='<div class="empty-st"><span class="empty-ic">📋</span>학생을 선택하세요</div>';return;}
+  const stu = _students.find(s=>s.id===stuId);
+  if(!stu) return;
+  const myHWs = _homeworks.filter(h=>hwCls(h).length===0||hwCls(h).includes(stu.class));
+  let submitted=0; const scores=[];
+  const rows = myHWs.map(hw => {
+    const sub=(_submissions[hw.id]||{})[stuId];
+    const clsObj=(hw.homework_classes||[]).find(c=>c.class_name===stu.class)||(hw.homework_classes||[])[0];
+    const tb=clsObj?.textbook||'-'; const ct=clsObj?.content||'';
+    let badge='<span class="bdg-n">❌ 미제출</span>'; let dateStr='-';
+    if(sub?.submitted){
+      submitted++;
+      if(sub.score!==null&&sub.score!==undefined) scores.push(Number(sub.score));
+      dateStr=(sub.submitted_at||'').replace('T',' ').slice(0,16);
+      badge='<span class="bdg-s">✅ 제출</span>';
+    }
+    const scoreStr=sub?.score!=null?sub.score+'점':'-';
+    const passStr=sub?.score!=null?(Number(sub.score)>=60?'<span class="bdg-p">합격</span>':'<span class="bdg-f">불합격</span>'):'-';
+    return `<tr>
+      <td style="font-size:12px;white-space:nowrap">${hw.due_date}</td>
+      <td><strong>${tb}</strong><br><small style="color:#888">${ct}</small></td>
+      <td>${badge}</td>
+      <td style="font-size:12px;color:#888;white-space:nowrap">${dateStr}</td>
+      <td style="font-weight:600">${scoreStr}</td>
+      <td>${passStr}</td>
+    </tr>`;
+  }).join('');
+  const avg=scores.length?Math.round(scores.reduce((a,b)=>a+b,0)/scores.length):null;
+  const rate=myHWs.length?Math.round(submitted/myHWs.length*100):0;
+  const prog=`<div style="background:var(--gray-200);border-radius:99px;height:8px;overflow:hidden;width:100%;margin-top:4px"><div style="height:100%;border-radius:99px;background:${rate>=80?'var(--success)':rate>=50?'var(--warning)':'var(--danger)'};width:${rate}%"></div></div>`;
+  el.innerHTML=`
+    <div class="row g-3 mb-3">
+      <div class="col-md-4"><div class="stat-card"><div class="stat-v" style="color:var(--primary)">${rate}%</div>${prog}<div class="stat-l" style="margin-top:6px">제출률</div></div></div>
+      <div class="col-md-4"><div class="stat-card"><div class="stat-v">${submitted}<span style="font-size:16px;color:#aaa"> / ${myHWs.length}</span></div><div class="stat-l">제출한 숙제</div></div></div>
+      <div class="col-md-4"><div class="stat-card"><div class="stat-v" style="color:${avg>=80?'var(--success)':avg>=60?'var(--warning)':'var(--danger)'}">${avg!==null?avg+'점':'-'}</div><div class="stat-l">평균 점수</div></div></div>
+    </div>
+    <div class="card-c">
+      <div class="card-h">📚 숙제 이력 — ${stu.name} (${stu.class}반) · 총 ${myHWs.length}개</div>
+      <div class="table-responsive">
+        <table class="table tbl mb-0">
+          <thead><tr><th>기한</th><th>교재 / 내용</th><th>제출</th><th>제출 시간</th><th>점수</th><th>합불</th></tr></thead>
+          <tbody>${rows||'<tr><td colspan="6" class="text-center py-4 text-muted">등록된 숙제가 없습니다</td></tr>'}</tbody>
+        </table>
+      </div>
+    </div>`;
+}
+
+// ---- TEMPLATES ----
+let _templates = {};
+
+async function loadTemplates() {
+  const { data } = await db.from('homework_templates').select('*');
+  _templates = {};
+  (data||[]).forEach(t=>{ _templates[`${t.class_name}_${t.day_of_week}`]=t; });
+  renderTemplateGrid();
+}
+
+function renderTemplateGrid() {
+  const classes = getClasses();
+  if(!classes.length){
+    document.getElementById('templateGrid').innerHTML='<div class="empty-st"><span class="empty-ic">👥</span>먼저 학생을 등록해주세요</div>';
+    return;
+  }
+  const days=[{label:'월',num:1},{label:'화',num:2},{label:'수',num:3},{label:'목',num:4},{label:'금',num:5},{label:'토',num:6}];
+  let html=`<div class="card-c" style="overflow-x:auto"><table class="table tbl mb-0">
+    <thead><tr><th style="min-width:70px">반</th>${days.map(d=>`<th style="min-width:150px">${d.label}요일</th>`).join('')}</tr></thead>
+    <tbody>`;
+  classes.forEach(cls=>{
+    html+=`<tr><td><strong>${cls}반</strong></td>`;
+    days.forEach(({num})=>{
+      const t=_templates[`${cls}_${num}`];
+      html+=`<td><input type="text" class="fc tmpl-tb" data-class="${cls}" data-day="${num}" placeholder="교재명" value="${t?.textbook||''}"></td>`;
+    });
+    html+=`</tr>`;
+  });
+  html+=`</tbody></table></div>
+  <div style="margin-top:12px;padding:12px 16px;background:#fffde7;border-radius:10px;font-size:13px;color:#7a5a2a">
+    💡 숙제 등록 모달에서 <strong>📂 고정 숙제 불러오기</strong> 버튼을 누르면 제출 기한의 요일에 맞는 교재가 자동으로 채워집니다.
+  </div>`;
+  document.getElementById('templateGrid').innerHTML=html;
+}
+
+async function saveTemplates() {
+  const rows=[];
+  document.querySelectorAll('.tmpl-tb').forEach(inp=>{
+    rows.push({class_name:inp.dataset.class,day_of_week:parseInt(inp.dataset.day),textbook:inp.value.trim()});
+  });
+  const {error}=await db.from('homework_templates').upsert(rows,{onConflict:'class_name,day_of_week'});
+  if(error){toast('저장 실패: '+error.message,'danger');return;}
+  await loadTemplates();
+  toast('고정 숙제 설정이 저장되었습니다!');
+}
+
+function loadTemplateRows() {
+  const due=document.getElementById('hwDue').value;
+  if(!due){toast('먼저 제출 기한을 선택하세요','info');return;}
+  const dt=new Date(due+'T00:00:00');
+  const dayNum=dt.getDay()===0?7:dt.getDay(); // 1=월...6=토, 일(0)→7
+  const classes=getClasses();
+  document.getElementById('clsRows').innerHTML=''; clsRowCnt2=0;
+  let added=0;
+  classes.forEach(cls=>{
+    const t=_templates[`${cls}_${dayNum}`];
+    if(t?.textbook){addClsRow({class_name:cls,textbook:t.textbook,content:'',problem_count:''});added++;}
+  });
+  if(!added){toast('해당 요일에 설정된 고정 숙제가 없습니다','info');addClsRow();}
+  else toast(`${added}개 반 교재가 불러와졌습니다`);
 }
 
 function exportCSV(hwId){

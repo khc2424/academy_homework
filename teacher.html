@@ -145,7 +145,6 @@ function checkPw() {
     <button class="nav-btn" onclick="showPage('homework')">📚 숙제 관리</button>
     <button class="nav-btn" onclick="showPage('message')">💬 카톡 메시지</button>
     <button class="nav-btn" onclick="showPage('students')">👥 학생 관리</button>
-    <button class="nav-btn" onclick="showPage('grades')">⭐ 채점 결과</button>
   </nav>
   <div style="position:absolute;bottom:16px;left:0;right:0;padding:0 8px">
     <a href="student.html" target="_blank" style="display:block;background:#FEE500;color:#3C1E1E;text-align:center;padding:10px;border-radius:8px;font-size:13px;font-weight:700;text-decoration:none">📱 학생 제출 페이지</a>
@@ -168,8 +167,8 @@ function checkPw() {
     <div class="row g-3">
       <div class="col-md-6"><div class="card-c"><div class="card-h">🕐 최근 숙제</div><div id="dashHW" style="padding:8px 0"></div></div></div>
       <div class="col-md-6"><div class="card-c"><div class="card-h">📸 최근 사진 제출</div><div id="dashPhotos" style="padding:8px 0"></div></div></div>
-      <div class="col-md-6"><div class="card-c"><div class="card-h">📈 숙제별 제출률</div><div style="padding:16px"><canvas id="chartSub" height="220"></canvas></div></div></div>
-      <div class="col-md-6"><div class="card-c"><div class="card-h">🥧 점수 분포</div><div style="padding:16px"><canvas id="chartGrd" height="220"></canvas></div></div></div>
+      <div class="col-md-6"><div class="card-c"><div class="card-h">📊 반별 제출률</div><div style="padding:16px"><canvas id="chartCls" height="220"></canvas></div></div></div>
+      <div class="col-md-6"><div class="card-c"><div class="card-h">📅 최근 7일 반별 제출 현황</div><div style="padding:16px"><canvas id="chartWeek" height="220"></canvas></div></div></div>
     </div>
   </div>
 
@@ -203,12 +202,17 @@ function checkPw() {
   <!-- MESSAGE -->
   <div class="page" id="page-message">
     <div class="page-title">💬 카카오톡 메시지 생성</div>
-    <div class="page-sub">숙제 공지 메시지를 자동으로 생성하여 복사합니다</div>
-    <div class="d-flex gap-2 mb-4 align-items-center">
-      <label style="font-size:13px;font-weight:500;color:#666;white-space:nowrap">숙제 선택:</label>
-      <select class="fc" style="width:320px" id="msgHWSel" onchange="renderMessages()"><option value="">-- 숙제를 선택하세요 --</option></select>
+    <div class="page-sub">숙제를 여러 개 선택하면 한 번에 합쳐서 메시지가 생성됩니다</div>
+    <div class="card-c mb-4">
+      <div class="card-h d-flex justify-content-between align-items-center">
+        <span>📚 숙제 선택 (여러 개 선택 가능)</span>
+        <button class="btn-p" onclick="renderMessages()">💬 메시지 생성</button>
+      </div>
+      <div id="msgHWList" style="padding:12px 20px;max-height:220px;overflow-y:auto">
+        <div class="empty-st" style="padding:16px"><span>숙제를 불러오는 중...</span></div>
+      </div>
     </div>
-    <div id="msgContent"><div class="empty-st"><span class="empty-ic">💬</span>숙제를 선택하면 반별 메시지가 생성됩니다</div></div>
+    <div id="msgContent"><div class="empty-st"><span class="empty-ic">💬</span>위에서 숙제를 선택하고 메시지 생성을 누르세요</div></div>
   </div>
 
   <!-- STUDENTS -->
@@ -416,37 +420,63 @@ function showPage(name) {
 function populateSelects() {
   const classes = getClasses();
   const clsOpts = '<option value="">전체 반</option>' + classes.map(c=>`<option>${c}</option>`).join('');
-  ['stuFilterCls','photoFilterClass','gradeClsSel'].forEach(id=>{ const el=document.getElementById(id); if(el)el.innerHTML=clsOpts; });
-  const hwOpts = '<option value="">-- 숙제를 선택하세요 --</option>' + _homeworks.map(h=>`<option value="${h.id}">[${h.subject}] ${hwCls(h).join('/')} (${h.due_date})</option>`).join('');
-  ['msgHWSel','gradeHWSel'].forEach(id=>{ const el=document.getElementById(id); if(el)el.innerHTML=hwOpts; });
+  ['stuFilterCls','photoFilterClass'].forEach(id=>{ const el=document.getElementById(id); if(el)el.innerHTML=clsOpts; });
   const phHWOpts = '<option value="">전체 숙제</option>' + _homeworks.map(h=>`<option value="${h.id}">[${h.subject}] ${hwCls(h).join('/')} (${h.due_date})</option>`).join('');
-  document.getElementById('photoFilterHW').innerHTML = phHWOpts;
+  const photoEl=document.getElementById('photoFilterHW'); if(photoEl)photoEl.innerHTML=phHWOpts;
+  renderMsgHWList();
 }
 
 // ---- DASHBOARD ----
 let charts = {};
 function makeChart(id, cfg) { if(charts[id])charts[id].destroy(); const ctx=document.getElementById(id); if(!ctx)return; charts[id]=new Chart(ctx,cfg); }
 
+function getClassRate(cls) {
+  const classHWs = _homeworks.filter(h => hwCls(h).length===0 || hwCls(h).includes(cls));
+  const classStudents = _students.filter(s => s.class === cls);
+  if (!classStudents.length || !classHWs.length) return 0;
+  let submitted = 0, total = classStudents.length * classHWs.length;
+  classHWs.forEach(hw => {
+    const sub = _submissions[hw.id] || {};
+    classStudents.forEach(s => { if(sub[s.id]?.submitted) submitted++; });
+  });
+  return Math.round(submitted / total * 100);
+}
+
 function renderDashboard() {
   document.getElementById('dTotalStu').textContent = _students.length;
   document.getElementById('dTotalHW').textContent = _homeworks.length;
-  const rates = _homeworks.map(h=>getSubRate(h.id));
-  document.getElementById('dSubmitRate').textContent = rates.length ? Math.round(rates.reduce((a,b)=>a+b,0)/rates.length)+'%' : '-';
+  const classes = getClasses();
+  const clsRates = classes.map(c => getClassRate(c));
+  const avgRate = clsRates.length ? Math.round(clsRates.reduce((a,b)=>a+b,0)/clsRates.length) : 0;
+  document.getElementById('dSubmitRate').textContent = avgRate + '%';
   // Recent HW
   const rwEl=document.getElementById('dashHW');
   if(!_homeworks.length){rwEl.innerHTML='<div class="empty-st"><span class="empty-ic">📭</span>숙제 없음</div>';}
-  else rwEl.innerHTML=_homeworks.slice(0,5).map(h=>`<div class="d-flex align-items-center gap-2 px-4 py-2" style="border-bottom:1px solid var(--gray-100)"><span style="background:${subClass(h.subject).split('|')[0]};color:${subClass(h.subject).split('|')[1]};padding:2px 8px;border-radius:12px;font-size:12px;font-weight:600">${h.subject}</span><span style="flex:1;font-size:13px">${hwCls(h).join('/')}</span>${getDueBadge(h.due_date)}<span style="font-size:12px;color:#999">${getSubRate(h.id)}%</span></div>`).join('');
+  else rwEl.innerHTML=_homeworks.slice(0,5).map(h=>`<div class="d-flex align-items-center gap-2 px-4 py-2" style="border-bottom:1px solid var(--gray-100)"><span style="background:#e0e7ff;color:#3730a3;padding:2px 8px;border-radius:12px;font-size:12px;font-weight:600">${h.subject}</span><span style="flex:1;font-size:13px">${hwCls(h).join('/')}</span>${getDueBadge(h.due_date)}<span style="font-size:12px;color:#999">${getSubRate(h.id)}%</span></div>`).join('');
   // Recent photos
   const phEl=document.getElementById('dashPhotos');
   const recent=_photoSubs.slice(0,5);
   if(!recent.length){phEl.innerHTML='<div class="empty-st"><span class="empty-ic">📸</span>제출된 사진 없음</div>';}
   else phEl.innerHTML=recent.map(s=>`<div class="d-flex align-items-center gap-2 px-4 py-2" style="border-bottom:1px solid var(--gray-100)"><span style="font-weight:600;font-size:13px">${s.students?.name||'?'}</span><span class="sub-badge">${s.students?.class||'?'}반</span><span style="flex:1;font-size:12px;color:#888">${(s.submitted_at||'').slice(0,10)}</span><img src="${s.photo_urls[0]}" style="width:36px;height:36px;object-fit:cover;border-radius:6px;cursor:pointer" onclick="openLightbox([${s.photo_urls.map(u=>`'${u}'`).join(',')}],0)"><span class="${s.reviewed?'reviewed-badge':'not-reviewed-badge'}">${s.reviewed?'확인':'미확인'}</span></div>`).join('');
-  // Charts
-  const hw6=_homeworks.slice(0,6).reverse();
-  makeChart('chartSub',{type:'bar',data:{labels:hw6.map(h=>hwCls(h).join('/')),datasets:[{label:'제출률(%)',data:hw6.map(h=>getSubRate(h.id)),backgroundColor:hw6.map(h=>{const r=getSubRate(h.id);return r>=80?'rgba(16,185,129,.7)':r>=50?'rgba(245,158,11,.7)':'rgba(239,68,68,.7)';}),borderRadius:6,borderSkipped:false}]},options:{plugins:{legend:{display:false}},scales:{y:{max:100,ticks:{callback:v=>v+'%'}}},responsive:true}});
-  let allSc=[]; _homeworks.forEach(h=>{const sub=_submissions[h.id]||{};_students.forEach(s=>{const info=sub[s.id];if(info&&info.score!==null&&info.score!==undefined)allSc.push(Number(info.score));});});
-  const dist=[0,0,0,0,0]; allSc.forEach(s=>{if(s<60)dist[0]++;else if(s<70)dist[1]++;else if(s<80)dist[2]++;else if(s<90)dist[3]++;else dist[4]++;});
-  makeChart('chartGrd',{type:'doughnut',data:{labels:['0~59점','60~69점','70~79점','80~89점','90~100점'],datasets:[{data:dist,backgroundColor:['#ef4444','#f59e0b','#3b82f6','#10b981','#8b5cf6'],borderWidth:2}]},options:{plugins:{legend:{position:'right'}},responsive:true}});
+  // 반별 제출률 차트
+  const colors=['rgba(79,70,229,.7)','rgba(16,185,129,.7)','rgba(245,158,11,.7)','rgba(239,68,68,.7)','rgba(139,92,246,.7)','rgba(236,72,153,.7)'];
+  makeChart('chartCls',{type:'bar',data:{labels:classes.map(c=>c+'반'),datasets:[{label:'제출률(%)',data:clsRates,backgroundColor:classes.map((_,i)=>colors[i%colors.length]),borderRadius:6,borderSkipped:false}]},options:{plugins:{legend:{display:false}},scales:{y:{max:100,ticks:{callback:v=>v+'%'}}},responsive:true}});
+  // 최근 7일 반별 일별 차트
+  const days=[]; const dayLabels=[];
+  for(let i=6;i>=0;i--){const d=new Date(Date.now()-i*86400000);days.push(d.toISOString().slice(0,10));dayLabels.push(`${d.getMonth()+1}/${d.getDate()}(${DAYS[d.getDay()]})`);}
+  const weekDatasets=classes.map((cls,ci)=>({
+    label:cls+'반',
+    data:days.map(day=>{
+      const dayHWs=_homeworks.filter(h=>h.assign_date===day&&(hwCls(h).length===0||hwCls(h).includes(cls)));
+      const clsStudents=_students.filter(s=>s.class===cls);
+      if(!dayHWs.length||!clsStudents.length)return null;
+      let submitted=0,total=clsStudents.length*dayHWs.length;
+      dayHWs.forEach(hw=>{const sub=_submissions[hw.id]||{};clsStudents.forEach(s=>{if(sub[s.id]?.submitted)submitted++;});});
+      return Math.round(submitted/total*100);
+    }),
+    borderColor:colors[ci%colors.length].replace('.7','1'),backgroundColor:colors[ci%colors.length],tension:.3,fill:false,spanGaps:true
+  }));
+  makeChart('chartWeek',{type:'line',data:{labels:dayLabels,datasets:weekDatasets},options:{plugins:{legend:{position:'bottom'}},scales:{y:{max:100,min:0,ticks:{callback:v=>v+'%'}}},responsive:true}});
 }
 
 // ---- PHOTOS ----
@@ -515,10 +545,14 @@ let clsRowCnt2=0;
 function addClsRow(data) {
   clsRowCnt2++;
   const c = clsRowCnt2;
+  const classes = getClasses();
+  const dlId = `dl_cls_${c}`;
   const el = document.createElement('div'); el.className='class-row'; el.id=`cr_${c}`;
-  el.innerHTML=`<div class="d-flex justify-content-between mb-2"><span style="font-size:13px;font-weight:600;color:var(--primary)">🏫 반 정보</span><button type="button" style="background:none;border:none;cursor:pointer;color:#ef4444;font-size:16px" onclick="document.getElementById('cr_${c}').remove()">✖</button></div>
+  el.innerHTML=`
+  <datalist id="${dlId}">${classes.map(cls=>`<option value="${cls}">`).join('')}</datalist>
+  <div class="d-flex justify-content-between mb-2"><span style="font-size:13px;font-weight:600;color:var(--primary)">🏫 반 정보</span><button type="button" style="background:none;border:none;cursor:pointer;color:#ef4444;font-size:16px" onclick="document.getElementById('cr_${c}').remove()">✖</button></div>
   <div class="row g-2">
-    <div class="col-4"><input type="text" class="fc cr-n" placeholder="반 이름 (고1B2)" value="${data?.class_name||''}"></div>
+    <div class="col-4"><input list="${dlId}" type="text" class="fc cr-n" placeholder="반 선택 또는 직접입력" value="${data?.class_name||''}"></div>
     <div class="col-5"><input type="text" class="fc cr-t" placeholder="교재명" value="${data?.textbook||''}"></div>
     <div class="col-3"><input type="number" class="fc cr-p" placeholder="문제수" min="0" value="${data?.problem_count||''}"></div>
     <div class="col-12"><textarea class="fc cr-c" placeholder="숙제 내용 (예: p.23~25 풀기, 오답노트 작성)" rows="3" style="resize:vertical;margin-top:6px">${data?.content||''}</textarea></div>
@@ -627,25 +661,62 @@ function renderHomework() {
 }
 
 // ---- MESSAGE ----
-let msgTpl = localStorage.getItem('hwm_tpl') || DEFAULT_TEMPLATE;
+function goMsg(hwId){
+  showPage('message');
+  setTimeout(()=>{
+    const cb=document.getElementById('msgcb_'+hwId);
+    if(cb){cb.checked=true;}
+  },100);
+}
 
-function goMsg(hwId){showPage('message');setTimeout(()=>{document.getElementById('msgHWSel').value=hwId;renderMessages();},50);}
+function renderMsgHWList() {
+  const el=document.getElementById('msgHWList');
+  if(!_homeworks.length){el.innerHTML='<div style="color:#999;font-size:13px;padding:8px">등록된 숙제가 없습니다</div>';return;}
+  el.innerHTML=_homeworks.map(h=>`
+    <label style="display:flex;align-items:center;gap:10px;padding:8px 4px;border-bottom:1px solid var(--gray-100);cursor:pointer">
+      <input type="checkbox" id="msgcb_${h.id}" value="${h.id}" style="width:16px;height:16px;cursor:pointer">
+      <span style="font-size:13px"><strong>${hwCls(h).join('/')}</strong> — ${h.assign_date} 공지 / 기한: ${h.due_date} ${h.due_time||''}${getDueBadge(h.due_date)}</span>
+    </label>`).join('');
+}
 
-function generateMsg(hw, clsObj) {
-  const name=clsObj.class_name; const tb=clsObj.textbook||''; const pc=clsObj.problem_count; const ct=clsObj.content||'';
-  const prob=pc?` (${String(parseInt(pc)||0).padStart(2,'0')}문제)`:'';
-  return msgTpl.replace(/\{반명\}/g,name).replace(/\{공지날짜\}/g,fmtHdr(hw.assign_date)).replace(/\{교재\}/g,tb).replace(/\{문제수\}/g,prob).replace(/\{숙제내용\}/g,ct).replace(/\{기한\}/g,fmtDue(hw.due_date));
+function generateCombinedMsg(className, hwList) {
+  // hwList: [{hw, clsObj}, ...]
+  if(!hwList.length)return'';
+  const first=hwList[0];
+  const header=`[${className}반_${fmtHdr(first.hw.assign_date)} 숙제 안내]`;
+  const blocks=hwList.map(({hw,clsObj})=>{
+    const tb=clsObj.textbook||''; const pc=clsObj.problem_count; const ct=clsObj.content||'';
+    const prob=pc?` (${String(parseInt(pc)||0).padStart(2,'0')}문제)`:'';
+    const time=hw.due_time||'12:00'; const hour=parseInt(time.split(':')[0]);
+    const timeStr=hour>=12?`밤${hour===12?12:hour-12}시`:`오전${hour}시`;
+    return `▶ 교재 : ${tb}${prob}\n⏭ ${ct}\n★ 기한 : ${fmtDue(hw.due_date)} ${timeStr}`;
+  }).join('\n');
+  const footer=`\n———————학생여러분께———————\n✓ 교재 노트풀이 하시기 바랍니다.\n✓ 오답노트 작성시 대충 하지 마시고 모르는 문제를 제대로 알아갈 수 있게 작성하시기 바랍니다.\n✓ 숙제 제출시 채점까지 완료해서 제출하시기 바랍니다.\n———————학부모님께————————\n✓ 학습 독려했음에도 숙제를 제대로 하지 않는 학생은 저에게 연락 부탁드립니다.\n✓ 숙제 연장은 학부모님께서만 가능합니다.\n✓ 숙제 연장은 담당선생님께 해주세요.`;
+  return `${header}\n${blocks}${footer}`;
 }
 
 function renderMessages() {
-  const hwId=document.getElementById('msgHWSel').value;
   const container=document.getElementById('msgContent');
-  if(!hwId){container.innerHTML='<div class="empty-st"><span class="empty-ic">💬</span>숙제를 선택하세요</div>';return;}
-  const hw=_homeworks.find(h=>h.id===hwId);
-  if(!hw||!(hw.homework_classes||[]).length){container.innerHTML='<div class="empty-st"><span class="empty-ic">⚠️</span>반 정보가 없습니다</div>';return;}
-  window._msgs=hw.homework_classes.map(c=>generateMsg(hw,c));
-  container.innerHTML=`<div class="row g-3">${hw.homework_classes.map((cls,i)=>`<div class="col-md-6"><div class="card-c"><div class="card-h d-flex justify-content-between"><span>📌 ${cls.class_name}반</span><button class="btn-kakao" id="cb_${i}" onclick="copyMsg(${i})">📋 복사</button></div><div style="padding:16px"><div class="kakao-prev"><div style="font-size:12px;color:#555;margin-bottom:4px;font-weight:600">선생님</div><div class="kakao-bubble">${escH(window._msgs[i])}</div></div></div></div></div>`).join('')}</div>`;
+  const checkedIds=[...(document.querySelectorAll('#msgHWList input[type=checkbox]:checked')||[])].map(cb=>cb.value);
+  if(!checkedIds.length){container.innerHTML='<div class="empty-st"><span class="empty-ic">💬</span>숙제를 1개 이상 선택하세요</div>';return;}
+  const selectedHWs=checkedIds.map(id=>_homeworks.find(h=>h.id===id)).filter(Boolean);
+  // 반별로 그룹핑
+  const classMap={};
+  selectedHWs.forEach(hw=>{
+    (hw.homework_classes||[]).forEach(clsObj=>{
+      const cls=clsObj.class_name;
+      if(!classMap[cls])classMap[cls]=[];
+      classMap[cls].push({hw,clsObj});
+    });
+  });
+  const classes=Object.keys(classMap);
+  if(!classes.length){container.innerHTML='<div class="empty-st"><span class="empty-ic">⚠️</span>반 정보가 없습니다</div>';return;}
+  window._msgs={};
+  classes.forEach(cls=>{window._msgs[cls]=generateCombinedMsg(cls,classMap[cls]);});
+  container.innerHTML=`<div class="row g-3">${classes.map(cls=>`<div class="col-md-6"><div class="card-c"><div class="card-h d-flex justify-content-between"><span>📌 ${cls}반 (${classMap[cls].length}개 숙제)</span><button class="btn-kakao" id="cb_${cls}" onclick="copyMsgCls('${cls}')">📋 복사</button></div><div style="padding:16px"><div class="kakao-prev"><div style="font-size:12px;color:#555;margin-bottom:4px;font-weight:600">선생님</div><div class="kakao-bubble">${escH(window._msgs[cls])}</div></div></div></div></div>`).join('')}</div>`;
 }
+
+function copyMsgCls(cls){const msg=window._msgs?.[cls];if(!msg)return;navigator.clipboard.writeText(msg).then(()=>{const b=document.getElementById('cb_'+cls);if(b){b.textContent='✅ 복사됨!';b.style.background='#10b981';b.style.color='#fff';setTimeout(()=>{b.textContent='📋 복사';b.style.background='';b.style.color='';},2000);}toast('클립보드에 복사되었습니다!');});}
 
 function escH(s){return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
 

@@ -54,10 +54,27 @@
     .photo-upload-area p { font-size: 14px; color: #888; margin-top: 8px; }
     .photo-upload-area small { font-size: 12px; color: #bbb; }
     .upload-icon { font-size: 36px; }
+    /* Type choice buttons */
+    .type-btn {
+      width: 100%; padding: 18px; border: 2px solid #e0e0e0; border-radius: 14px;
+      background: #fff; font-size: 16px; font-weight: 700; cursor: pointer;
+      transition: .2s; margin-bottom: 10px; text-align: center; color: #333;
+    }
+    .type-btn:active { transform: scale(.98); }
+    .type-btn.selected-submit { border-color: #FEE500; background: #fffde7; color: #3C1E1E; }
+    .type-btn.selected-ext { border-color: #ef4444; background: #fff0f0; color: #991b1b; }
+    /* Extension form */
+    .ext-form { display: none; margin-top: 4px; }
+    .ext-form.show { display: block; }
     /* Photo previews */
     .photo-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-top: 12px; }
     .photo-item { position: relative; aspect-ratio: 1; }
     .photo-item img { width: 100%; height: 100%; object-fit: cover; border-radius: 8px; }
+    .photo-item .pdf-thumb {
+      width: 100%; height: 100%; border-radius: 8px; background: #f3f4f6;
+      display: flex; flex-direction: column; align-items: center; justify-content: center;
+      font-size: 11px; color: #666; text-align: center; padding: 4px; word-break: break-all;
+    }
     .photo-remove {
       position: absolute; top: -6px; right: -6px;
       background: #ef4444; color: #fff; border: none; border-radius: 50%;
@@ -180,28 +197,65 @@
     <div id="hwDetail" style="display:none;background:#f8f8f8;border-radius:10px;padding:12px;font-size:13px;color:#555;line-height:1.7"></div>
   </div>
 
-  <!-- Step 3: 사진 첨부 -->
+  <!-- Step 3: 제출 방식 선택 -->
   <div class="card">
-    <div class="card-title"><span class="step-badge">3</span> 사진 첨부 <span style="font-size:12px;font-weight:400;color:#888">(최대 20장)</span></div>
-    <div class="photo-upload-area" id="uploadArea" onclick="document.getElementById('photoInput').click()">
-      <div class="upload-icon">📷</div>
-      <p>여기를 눌러 사진 선택</p>
-      <small>풀이한 숙제 사진을 찍어서 업로드하세요</small>
-    </div>
-    <input type="file" id="photoInput" accept="image/*" multiple style="display:none" onchange="handlePhotos(event)">
-    <div class="photo-grid" id="photoGrid"></div>
-    <div class="error-msg" id="photoErr">사진을 1장 이상 첨부해주세요</div>
+    <div class="card-title"><span class="step-badge">3</span> 제출 방식 선택</div>
+    <button class="type-btn" id="btnSubmit" onclick="selectType('submit')">
+      ✅ 숙제 제출하기
+    </button>
+    <button class="type-btn" id="btnExt" onclick="selectType('extension')">
+      📅 기한 연장 신청하기
+    </button>
+    <div class="error-msg" id="typeErr">제출 방식을 선택해주세요</div>
   </div>
 
-  <!-- Step 4: 메모 -->
-  <div class="card">
-    <div class="card-title"><span class="step-badge">4</span> 선생님께 전달 메모 <span style="font-size:12px;font-weight:400;color:#888">(선택)</span></div>
+  <!-- Step 4-A: 파일 첨부 (제출 선택 시) -->
+  <div class="card" id="cardFiles" style="display:none">
+    <div class="card-title"><span class="step-badge">4</span> 파일 첨부 <span style="font-size:12px;font-weight:400;color:#888">(사진·PDF, 최대 20개)</span></div>
+    <div class="photo-upload-area" id="uploadArea" onclick="document.getElementById('photoInput').click()">
+      <div class="upload-icon">📎</div>
+      <p>여기를 눌러 파일 선택</p>
+      <small>사진(JPG·PNG) 또는 PDF 파일을 업로드하세요</small>
+    </div>
+    <input type="file" id="photoInput" accept="image/*,.pdf" multiple style="display:none" onchange="handlePhotos(event)">
+    <div class="photo-grid" id="photoGrid"></div>
+    <div class="error-msg" id="photoErr">파일을 1개 이상 첨부해주세요</div>
+  </div>
+
+  <!-- Step 4-B: 연장 정보 (연장 선택 시) -->
+  <div class="card" id="cardExt" style="display:none">
+    <div class="card-title"><span class="step-badge">4</span> 연장 신청 정보</div>
+    <div class="mb-3">
+      <label>연장 요청 날짜 *</label>
+      <input type="date" id="extDate" style="width:100%;padding:12px 14px;border:1.5px solid #e0e0e0;border-radius:10px;font-size:14px;outline:none">
+      <div class="error-msg" id="extDateErr">날짜를 선택해주세요</div>
+    </div>
+    <div class="mb-3">
+      <label>연장 요청 시간 *</label>
+      <select id="extTime" style="width:100%;padding:12px 14px;border:1.5px solid #e0e0e0;border-radius:10px;font-size:14px">
+        <option value="10:00">오전 10시</option>
+        <option value="12:00">낮 12시</option>
+        <option value="18:00">오후 6시</option>
+        <option value="22:00" selected>밤 10시</option>
+        <option value="23:59">밤 12시</option>
+      </select>
+    </div>
+    <div class="mb-3">
+      <label>연장 사유 *</label>
+      <textarea id="extReason" rows="4" placeholder="연장이 필요한 이유를 적어주세요&#10;예: 시험 준비로 인해 시간이 부족합니다"></textarea>
+      <div class="error-msg" id="extReasonErr">사유를 입력해주세요</div>
+    </div>
+  </div>
+
+  <!-- Step 5: 메모 (제출 시만) -->
+  <div class="card" id="cardMemo" style="display:none">
+    <div class="card-title"><span class="step-badge">5</span> 선생님께 전달 메모 <span style="font-size:12px;font-weight:400;color:#888">(선택)</span></div>
     <textarea id="memo" rows="3" placeholder="예: 5번은 이해가 안 돼서 질문드립니다 / 늦게 제출해서 죄송합니다"></textarea>
   </div>
 
   <!-- Submit -->
-  <button class="btn-submit" id="submitBtn" onclick="submitHomework()">
-    ✅ 숙제 제출하기
+  <button class="btn-submit" id="submitBtn" onclick="submitHomework()" style="display:none">
+    ✅ 제출하기
   </button>
   <div style="height:32px"></div>
 </div>
@@ -220,6 +274,19 @@ const { createClient } = supabase;
 const db = createClient(SUPABASE_URL, SUPABASE_KEY);
 
 let selectedPhotos = [];
+let submissionType = ''; // 'submit' or 'extension'
+
+function selectType(type) {
+  submissionType = type;
+  document.getElementById('btnSubmit').className = 'type-btn' + (type==='submit'?' selected-submit':'');
+  document.getElementById('btnExt').className   = 'type-btn' + (type==='extension'?' selected-ext':'');
+  document.getElementById('typeErr').classList.remove('show');
+  document.getElementById('cardFiles').style.display = type==='submit' ? 'block' : 'none';
+  document.getElementById('cardExt').style.display   = type==='extension' ? 'block' : 'none';
+  document.getElementById('cardMemo').style.display  = type==='submit' ? 'block' : 'none';
+  document.getElementById('submitBtn').style.display = 'block';
+  document.getElementById('submitBtn').textContent = type==='submit' ? '✅ 숙제 제출하기' : '📅 연장 신청하기';
+}
 
 // ============================================================
 //  INIT
@@ -318,16 +385,23 @@ document.getElementById('homeworkSelect').addEventListener('change', function() 
 function handlePhotos(event) {
   const files = [...event.target.files];
   const remaining = 20 - selectedPhotos.length;
-  if (remaining <= 0) { alert('사진은 최대 20장까지 첨부할 수 있어요'); return; }
+  if (remaining <= 0) { alert('파일은 최대 20개까지 첨부할 수 있어요'); return; }
   const toAdd = files.slice(0, remaining);
   toAdd.forEach(file => {
-    if (!file.type.startsWith('image/')) return;
-    const reader = new FileReader();
-    reader.onload = e => {
-      selectedPhotos.push({ file, preview: e.target.result });
+    const isPdf = file.type === 'application/pdf';
+    const isImg = file.type.startsWith('image/');
+    if (!isPdf && !isImg) return;
+    if (isPdf) {
+      selectedPhotos.push({ file, preview: null, isPdf: true, name: file.name });
       renderPhotoGrid();
-    };
-    reader.readAsDataURL(file);
+    } else {
+      const reader = new FileReader();
+      reader.onload = e => {
+        selectedPhotos.push({ file, preview: e.target.result, isPdf: false });
+        renderPhotoGrid();
+      };
+      reader.readAsDataURL(file);
+    }
   });
   event.target.value = '';
 }
@@ -336,7 +410,9 @@ function renderPhotoGrid() {
   const grid = document.getElementById('photoGrid');
   grid.innerHTML = selectedPhotos.map((p, i) => `
     <div class="photo-item">
-      <img src="${p.preview}" alt="사진 ${i+1}">
+      ${p.isPdf
+        ? `<div class="pdf-thumb">📄<br>${p.name.length>16?p.name.slice(0,14)+'..':p.name}</div>`
+        : `<img src="${p.preview}" alt="사진 ${i+1}">`}
       <button class="photo-remove" onclick="removePhoto(${i})">✕</button>
     </div>`).join('');
   const area = document.getElementById('uploadArea');
@@ -355,8 +431,8 @@ uploadArea.addEventListener('dragover', e => { e.preventDefault(); uploadArea.cl
 uploadArea.addEventListener('dragleave', () => uploadArea.classList.remove('drag-over'));
 uploadArea.addEventListener('drop', e => {
   e.preventDefault(); uploadArea.classList.remove('drag-over');
-  const files = [...e.dataTransfer.files].filter(f => f.type.startsWith('image/'));
-  if (files.length) handlePhotos({ target: { files }, target: { value: '' } });
+  const files = [...e.dataTransfer.files].filter(f => f.type.startsWith('image/') || f.type==='application/pdf');
+  if (files.length) handlePhotos({ target: { files, value: '' } });
 });
 
 // ============================================================
@@ -372,7 +448,14 @@ function validate() {
   if (!document.getElementById('classSelect').value) show('classErr', '반을 선택해주세요'); else hide('classErr');
   if (!document.getElementById('nameSelect').value) show('nameErr', '이름을 선택해주세요'); else hide('nameErr');
   if (!document.getElementById('homeworkSelect').value) show('hwErr', '숙제를 선택해주세요'); else hide('hwErr');
-  if (!selectedPhotos.length) show('photoErr', '사진을 1장 이상 첨부해주세요'); else hide('photoErr');
+  if (!submissionType) { show('typeErr', '제출 방식을 선택해주세요'); ok = false; } else document.getElementById('typeErr').classList.remove('show');
+  if (submissionType === 'submit') {
+    if (!selectedPhotos.length) show('photoErr', '파일을 1개 이상 첨부해주세요'); else hide('photoErr');
+  }
+  if (submissionType === 'extension') {
+    if (!document.getElementById('extDate').value) show('extDateErr', '날짜를 선택해주세요'); else hide('extDateErr');
+    if (!document.getElementById('extReason').value.trim()) show('extReasonErr', '사유를 입력해주세요'); else hide('extReasonErr');
+  }
   return ok;
 }
 
@@ -380,51 +463,59 @@ async function submitHomework() {
   if (!validate()) return;
   const btn = document.getElementById('submitBtn');
   btn.disabled = true;
-  showLoading('준비 중...');
+  showLoading('처리 중...');
 
-  const classVal = document.getElementById('classSelect').value;
   const studentId = document.getElementById('nameSelect').value;
   const studentName = document.getElementById('nameSelect').options[document.getElementById('nameSelect').selectedIndex].text;
   const hwId = document.getElementById('homeworkSelect').value;
-  const memo = document.getElementById('memo').value.trim();
 
   try {
-    // Upload photos
-    const photoUrls = [];
-    for (let i = 0; i < selectedPhotos.length; i++) {
-      setProgress(Math.round((i / selectedPhotos.length) * 80), `사진 업로드 중... (${i+1}/${selectedPhotos.length})`);
-      const file = selectedPhotos[i].file;
-      const ext = file.name.split('.').pop() || 'jpg';
-      const path = `submissions/${hwId}/${studentId}_${Date.now()}_${i}.${ext}`;
-      const { data, error } = await db.storage.from(BUCKET_NAME).upload(path, file, { upsert: true });
-      if (error) throw error;
-      const { data: urlData } = db.storage.from(BUCKET_NAME).getPublicUrl(path);
-      photoUrls.push(urlData.publicUrl);
-    }
-
-    setProgress(90, '제출 정보 저장 중...');
-
-    // Check if submission exists
-    const { data: existing } = await db.from('submissions')
-      .select('id').eq('homework_id', hwId).eq('student_id', studentId).single();
-
-    if (existing) {
-      const { error: upErr } = await db.from('submissions').update({
-        submitted: true, submitted_at: new Date().toISOString(),
-        photo_urls: photoUrls, submit_memo: memo
-      }).eq('id', existing.id);
-      if (upErr) throw upErr;
-    } else {
-      const { error: inErr } = await db.from('submissions').insert({
+    if (submissionType === 'extension') {
+      // 연장 신청
+      const extDate = document.getElementById('extDate').value;
+      const extTime = document.getElementById('extTime').value;
+      const extReason = document.getElementById('extReason').value.trim();
+      const { error: extErr } = await db.from('extension_requests').insert({
         homework_id: hwId, student_id: studentId,
-        submitted: true, submitted_at: new Date().toISOString(),
-        photo_urls: photoUrls, submit_memo: memo
+        requested_until: extDate, requested_time: extTime, reason: extReason
       });
-      if (inErr) throw inErr;
+      if (extErr) throw extErr;
+      setProgress(100, '완료!');
+      document.getElementById('successMsg').innerHTML = `<strong>${studentName}</strong> 학생의 연장 신청이 선생님께 전달되었습니다.<br>승인 여부를 확인해주세요 📅`;
+    } else {
+      // 숙제 제출
+      const memo = document.getElementById('memo').value.trim();
+      const photoUrls = [];
+      for (let i = 0; i < selectedPhotos.length; i++) {
+        setProgress(Math.round((i / selectedPhotos.length) * 80), `파일 업로드 중... (${i+1}/${selectedPhotos.length})`);
+        const file = selectedPhotos[i].file;
+        const ext = file.name.split('.').pop() || 'jpg';
+        const path = `submissions/${hwId}/${studentId}_${Date.now()}_${i}.${ext}`;
+        const { error } = await db.storage.from(BUCKET_NAME).upload(path, file, { upsert: true });
+        if (error) throw error;
+        const { data: urlData } = db.storage.from(BUCKET_NAME).getPublicUrl(path);
+        photoUrls.push(urlData.publicUrl);
+      }
+      setProgress(90, '제출 정보 저장 중...');
+      const { data: existing } = await db.from('submissions')
+        .select('id').eq('homework_id', hwId).eq('student_id', studentId).single();
+      if (existing) {
+        const { error: upErr } = await db.from('submissions').update({
+          submitted: true, submitted_at: new Date().toISOString(),
+          photo_urls: photoUrls, submit_memo: memo
+        }).eq('id', existing.id);
+        if (upErr) throw upErr;
+      } else {
+        const { error: inErr } = await db.from('submissions').insert({
+          homework_id: hwId, student_id: studentId,
+          submitted: true, submitted_at: new Date().toISOString(),
+          photo_urls: photoUrls, submit_memo: memo
+        });
+        if (inErr) throw inErr;
+      }
+      setProgress(100, '완료!');
+      document.getElementById('successMsg').innerHTML = `<strong>${studentName}</strong> 학생의 숙제가 선생님께 전달되었습니다.<br>고생했어요! 😊`;
     }
-
-    setProgress(100, '완료!');
-    document.getElementById('successMsg').innerHTML = `<strong>${studentName}</strong> 학생의 숙제가 선생님께 전달되었습니다.<br>고생했어요! 😊`;
     setTimeout(showSuccess, 500);
   } catch (err) {
     hideLoading();
@@ -458,10 +549,20 @@ function resetForm() {
   document.getElementById('homeworkSelect').value = '';
   document.getElementById('hwDetail').style.display = 'none';
   document.getElementById('memo').value = '';
+  // 제출방식 초기화
+  submissionType = '';
+  document.getElementById('btnSubmit').className = 'type-btn';
+  document.getElementById('btnExt').className = 'type-btn';
+  document.getElementById('cardFiles').style.display = 'none';
+  document.getElementById('cardExt').style.display = 'none';
+  document.getElementById('cardMemo').style.display = 'none';
+  document.getElementById('submitBtn').style.display = 'none';
+  document.getElementById('extDate').value = '';
+  document.getElementById('extReason').value = '';
   selectedPhotos = [];
   renderPhotoGrid();
   document.getElementById('submitBtn').disabled = false;
-  if (selectedPhotos.length < 20) document.getElementById('uploadArea').style.display = 'block';
+  document.getElementById('uploadArea').style.display = 'block';
   updateHomeworkSelect('');
 }
 

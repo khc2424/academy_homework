@@ -256,9 +256,10 @@ function checkPw() {
     <div class="modal-bd">
       <input type="hidden" id="hwEditId">
       <div class="row g-2 mb-3">
-        <div class="col-4"><label style="font-size:13px;font-weight:500;color:#666;display:block;margin-bottom:4px">과목 *</label><select class="fc" id="hwSubj"><option>수학</option><option>영어</option><option>국어</option><option>과학</option><option>사회</option><option>기타</option></select></div>
-        <div class="col-4"><label style="font-size:13px;font-weight:500;color:#666;display:block;margin-bottom:4px">공지 날짜 *</label><input type="date" class="fc" id="hwAssign"></div>
+        <div class="col-2"><label style="font-size:13px;font-weight:500;color:#666;display:block;margin-bottom:4px">과목</label><div class="fc" style="background:#f3f4f6;color:#374151;font-weight:600">수학</div><input type="hidden" id="hwSubj" value="수학"></div>
+        <div class="col-3"><label style="font-size:13px;font-weight:500;color:#666;display:block;margin-bottom:4px">공지 날짜 *</label><input type="date" class="fc" id="hwAssign"></div>
         <div class="col-4"><label style="font-size:13px;font-weight:500;color:#666;display:block;margin-bottom:4px">제출 기한 *</label><input type="date" class="fc" id="hwDue"></div>
+        <div class="col-3"><label style="font-size:13px;font-weight:500;color:#666;display:block;margin-bottom:4px">제출 시간 *</label><input type="time" class="fc" id="hwDueTime" value="12:00"></div>
       </div>
       <div class="d-flex justify-content-between align-items-center mb-2">
         <label style="font-size:14px;font-weight:600;color:var(--primary)">🏫 반별 숙제 내용</label>
@@ -517,12 +518,27 @@ function addClsRow(data) {
   const el = document.createElement('div'); el.className='class-row'; el.id=`cr_${c}`;
   el.innerHTML=`<div class="d-flex justify-content-between mb-2"><span style="font-size:13px;font-weight:600;color:var(--primary)">🏫 반 정보</span><button type="button" style="background:none;border:none;cursor:pointer;color:#ef4444;font-size:16px" onclick="document.getElementById('cr_${c}').remove()">✖</button></div>
   <div class="row g-2">
-    <div class="col-3"><input type="text" class="fc cr-n" placeholder="반 이름 (고1B2)" value="${data?.class_name||''}"></div>
-    <div class="col-4"><input type="text" class="fc cr-t" placeholder="교재명" value="${data?.textbook||''}"></div>
-    <div class="col-2"><input type="number" class="fc cr-p" placeholder="문제수" min="0" value="${data?.problem_count||''}"></div>
-    <div class="col-3"><input type="text" class="fc cr-c" placeholder="숙제 내용" value="${data?.content||''}"></div>
+    <div class="col-4"><input type="text" class="fc cr-n" placeholder="반 이름 (고1B2)" value="${data?.class_name||''}"></div>
+    <div class="col-5"><input type="text" class="fc cr-t" placeholder="교재명" value="${data?.textbook||''}"></div>
+    <div class="col-3"><input type="number" class="fc cr-p" placeholder="문제수" min="0" value="${data?.problem_count||''}"></div>
+    <div class="col-12"><textarea class="fc cr-c" placeholder="숙제 내용 (예: p.23~25 풀기, 오답노트 작성)" rows="3" style="resize:vertical;margin-top:6px">${data?.content||''}</textarea></div>
   </div>`;
   document.getElementById('clsRows').appendChild(el);
+}
+
+function getDefaultDue() {
+  const now = new Date();
+  const day = now.getDay(); // 0=일,1=월,2=화,3=수,4=목,5=금,6=토
+  let addDays, time;
+  if(day===1){addDays=1;time='12:00';}      // 월 → 화 12시
+  else if(day===2){addDays=1;time='12:00';} // 화 → 수 12시
+  else if(day===3){addDays=1;time='12:00';} // 수 → 목 12시
+  else if(day===4){addDays=2;time='10:00';} // 목 → 토 10시
+  else if(day===5){addDays=1;time='10:00';} // 금 → 토 10시
+  else if(day===6){addDays=1;time='10:00';} // 토 → 일 10시
+  else{addDays=1;time='12:00';}             // 일 → 월 12시
+  const due = new Date(now.getTime() + addDays*86400000);
+  return { date: due.toISOString().slice(0,10), time };
 }
 
 function openHWModal(id) {
@@ -530,28 +546,43 @@ function openHWModal(id) {
   document.getElementById('hwModalTitle').textContent = id?'숙제 수정':'숙제 등록';
   document.getElementById('clsRows').innerHTML=''; clsRowCnt2=0;
   const today=new Date().toISOString().slice(0,10);
-  const next=new Date(Date.now()+86400000).toISOString().slice(0,10);
-  if(id){const hw=_homeworks.find(h=>h.id===id);if(hw){document.getElementById('hwSubj').value=hw.subject;document.getElementById('hwAssign').value=hw.assign_date;document.getElementById('hwDue').value=hw.due_date;(hw.homework_classes||[]).forEach(c=>addClsRow(c));}}
-  else{document.getElementById('hwSubj').value='수학';document.getElementById('hwAssign').value=today;document.getElementById('hwDue').value=next;addClsRow();}
+  const def=getDefaultDue();
+  if(id){
+    const hw=_homeworks.find(h=>h.id===id);
+    if(hw){
+      document.getElementById('hwSubj').value=hw.subject||'수학';
+      document.getElementById('hwAssign').value=hw.assign_date;
+      document.getElementById('hwDue').value=hw.due_date;
+      document.getElementById('hwDueTime').value=hw.due_time||'12:00';
+      (hw.homework_classes||[]).forEach(c=>addClsRow(c));
+    }
+  } else {
+    document.getElementById('hwSubj').value='수학';
+    document.getElementById('hwAssign').value=today;
+    document.getElementById('hwDue').value=def.date;
+    document.getElementById('hwDueTime').value=def.time;
+    addClsRow();
+  }
   openModal('hwModal');
 }
 
 async function saveHW() {
-  const subject=document.getElementById('hwSubj').value;
+  const subject=document.getElementById('hwSubj').value||'수학';
   const assignDate=document.getElementById('hwAssign').value;
   const dueDate=document.getElementById('hwDue').value;
+  const dueTime=document.getElementById('hwDueTime').value||'12:00';
   if(!assignDate||!dueDate){toast('날짜를 입력해주세요','danger');return;}
   const rows=[...document.querySelectorAll('#clsRows .class-row')].map(r=>({class_name:r.querySelector('.cr-n').value.trim(),textbook:r.querySelector('.cr-t').value.trim(),problem_count:r.querySelector('.cr-p').value.trim(),content:r.querySelector('.cr-c').value.trim()})).filter(r=>r.class_name||r.textbook);
   if(!rows.length){toast('반 정보를 입력해주세요','danger');return;}
   const editId=document.getElementById('hwEditId').value;
   try {
     if(editId){
-      await db.from('homeworks').update({subject,assign_date:assignDate,due_date:dueDate}).eq('id',editId);
+      await db.from('homeworks').update({subject,assign_date:assignDate,due_date:dueDate,due_time:dueTime}).eq('id',editId);
       await db.from('homework_classes').delete().eq('homework_id',editId);
       await db.from('homework_classes').insert(rows.map(r=>({...r,homework_id:editId})));
       toast('숙제가 수정되었습니다');
     } else {
-      const {data,error}=await db.from('homeworks').insert({subject,assign_date:assignDate,due_date:dueDate}).select().single();
+      const {data,error}=await db.from('homeworks').insert({subject,assign_date:assignDate,due_date:dueDate,due_time:dueTime}).select().single();
       if(error)throw error;
       await db.from('homework_classes').insert(rows.map(r=>({...r,homework_id:data.id})));
       toast('숙제가 등록되었습니다');

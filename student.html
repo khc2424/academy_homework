@@ -395,7 +395,7 @@ async function submitHomework() {
       setProgress(Math.round((i / selectedPhotos.length) * 80), `사진 업로드 중... (${i+1}/${selectedPhotos.length})`);
       const file = selectedPhotos[i].file;
       const ext = file.name.split('.').pop() || 'jpg';
-      const path = `${classVal}/${studentName}/${hwId}_${Date.now()}_${i}.${ext}`;
+      const path = `submissions/${hwId}/${studentId}_${Date.now()}_${i}.${ext}`;
       const { data, error } = await db.storage.from(BUCKET_NAME).upload(path, file, { upsert: true });
       if (error) throw error;
       const { data: urlData } = db.storage.from(BUCKET_NAME).getPublicUrl(path);

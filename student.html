@@ -409,16 +409,18 @@ async function submitHomework() {
       .select('id').eq('homework_id', hwId).eq('student_id', studentId).single();
 
     if (existing) {
-      await db.from('submissions').update({
+      const { error: upErr } = await db.from('submissions').update({
         submitted: true, submitted_at: new Date().toISOString(),
         photo_urls: photoUrls, submit_memo: memo
       }).eq('id', existing.id);
+      if (upErr) throw upErr;
     } else {
-      await db.from('submissions').insert({
+      const { error: inErr } = await db.from('submissions').insert({
         homework_id: hwId, student_id: studentId,
         submitted: true, submitted_at: new Date().toISOString(),
         photo_urls: photoUrls, submit_memo: memo
       });
+      if (inErr) throw inErr;
     }
 
     setProgress(100, '완료!');

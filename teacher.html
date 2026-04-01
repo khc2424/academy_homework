@@ -1066,12 +1066,15 @@ function renderMsgHWList() {
     });
   }
   const checkedCls = [...(document.querySelectorAll('#msgClsFilterWrap input:checked')||[])].map(cb=>cb.value);
-  const filtered = (checkedCls.length
-    ? _homeworks.filter(h => hwCls(h).length === 0 || hwCls(h).some(c => checkedCls.includes(c)))
-    : _homeworks.slice()
-  ).sort((a,b) => ((a.due_date||'')+(a.due_time||'')).localeCompare((b.due_date||'')+(b.due_time||'')));
+  if (!checkedCls.length) {
+    el.innerHTML = '<div style="color:#aaa;font-size:13px;padding:12px;text-align:center">반을 선택하면 숙제 목록이 표시됩니다</div>';
+    return;
+  }
+  const filtered = _homeworks
+    .filter(h => hwCls(h).length === 0 || hwCls(h).some(c => checkedCls.includes(c)))
+    .sort((a,b) => ((a.due_date||'')+(a.due_time||'')).localeCompare((b.due_date||'')+(b.due_time||'')));
   if (!filtered.length) {
-    el.innerHTML = '<div style="color:#999;font-size:13px;padding:8px">' + (clsFilter ? clsFilter+'반 숙제가 없습니다' : '등록된 숙제가 없습니다') + '</div>';
+    el.innerHTML = '<div style="color:#999;font-size:13px;padding:8px">선택한 반의 숙제가 없습니다</div>';
     return;
   }
   el.innerHTML = filtered.map(h => `

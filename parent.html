@@ -136,6 +136,21 @@
   <div id="parentLbCount" style="position:absolute;bottom:20px;color:rgba(255,255,255,.7);font-size:13px"></div>
 </div>
 
+<!-- 숙제 상세 팝업 -->
+<div id="hwDetailModal" onclick="if(event.target===this)closeHWDetail()" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:9998;align-items:center;justify-content:center;padding:20px">
+  <div style="background:#fff;border-radius:18px;padding:22px 20px;width:100%;max-width:360px;box-shadow:0 16px 48px rgba(0,0,0,.2)">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
+      <span style="font-weight:700;font-size:15px">📚 숙제 안내</span>
+      <button onclick="closeHWDetail()" style="background:none;border:none;font-size:24px;cursor:pointer;color:#999;line-height:1">✕</button>
+    </div>
+    <div style="background:#B2C7D9;border-radius:12px;padding:14px 14px 16px">
+      <div style="font-size:12px;color:#3d3d3d;margin-bottom:6px;font-weight:700">선생님</div>
+      <div id="hwDetailBubble" style="background:#fff;border-radius:12px;padding:12px 14px;font-size:14px;line-height:2.1;white-space:pre-wrap;word-break:break-all;box-shadow:0 2px 8px rgba(0,0,0,.1)"></div>
+    </div>
+    <button id="hwDetailCopyBtn" onclick="copyHWDetail()" style="background:#FEE500;border:none;color:#3C1E1E;border-radius:10px;padding:12px;font-size:14px;font-weight:700;cursor:pointer;width:100%;margin-top:12px">📋 카카오톡에 복사하기</button>
+  </div>
+</div>
+
 <!-- 앱 -->
 <div id="app">
   <div class="app-header">
@@ -162,8 +177,8 @@
       <div class="summary-card"><div class="summary-num" id="sumSubmitted" style="color:var(--success)">-</div><div class="summary-label">제출 완료</div></div>
       <div class="summary-card"><div class="summary-num" id="sumMissing" style="color:var(--danger)">-</div><div class="summary-label">미제출</div></div>
     </div>
-    <div class="section-title">📋 최근 한 달 활동</div>
-    <div id="recentList"><div class="empty-st"><span class="empty-ic">📋</span>활동 내역이 없습니다</div></div>
+    <div class="section-title">📚 공지된 숙제 <span style="font-size:12px;font-weight:400;color:var(--gray-600)">(누르면 내용 확인)</span></div>
+    <div id="recentList"><div class="empty-st"><span class="empty-ic">📋</span>공지된 숙제가 없습니다</div></div>
   </div>
 
   <!-- 제출 이력 탭 -->
@@ -325,11 +340,26 @@ function switchTab(name) {
 }
 
 // ── 요약 탭
+const DAYS_P = ['일','월','화','수','목','금','토'];
+function fmtDueP(d) {
+  if(!d) return '';
+  const dt = new Date(d+'T00:00:00');
+  return `${String(dt.getFullYear()).slice(2)}.${String(dt.getMonth()+1).padStart(2,'0')}.${String(dt.getDate()).padStart(2,'0')}.(${DAYS_P[dt.getDay()]})`;
+}
+function fmtTimeP(time) {
+  const h = parseInt((time||'12:00').split(':')[0]);
+  return (h===23) ? '밤 12시' : h>=12 ? `밤${h===12?12:h-12}시` : `오전${h}시`;
+}
+
 function renderSummary() {
   const myHws = _homeworks.filter(h=>{
     const cls=(h.homework_classes||[]).map(c=>c.class_name);
     return !cls.length || cls.includes(_student.class);
-  });
+  }).sort((a,b)=>b.due_date.localeCompare(a.due_date));
+
+  const subMap = {};
+  _submissions.forEach(s=>{ subMap[s.homework_id]=s; });
+
   const submitted = _submissions.filter(s=>s.submitted).length;
   document.getElementById('sumTotal').textContent = myHws.length;
   document.getElementById('sumSubmitted').textContent = submitted;
@@ -341,42 +371,38 @@ function renderSummary() {
   if (rejected.length) {
     document.getElementById('rejectAlertBody').innerHTML = rejected.map(s=>{
       const hw = _homeworks.find(h=>h.id===s.homework_id);
-      return `• <strong>${hw?`[${hw.subject}] ${hw.due_date}`:'숙제'}</strong> — ${s.rejection_reason||'사유 없음'}`;
+      const clsObj = hw?(hw.homework_classes||[]).find(c=>c.class_name===_student.class)||(hw.homework_classes||[])[0]:null;
+      return `• <strong>${clsObj?.textbook||hw?.subject||'숙제'} (${hw?.due_date||''})</strong> — ${s.rejection_reason||'사유 없음'}`;
     }).join('<br>');
     rejectAlert.style.display='block';
   } else {
     rejectAlert.style.display='none';
   }
 
-  // 최근 한 달 활동 (30일 이내)
-  const cutoff = new Date(); cutoff.setDate(cutoff.getDate()-30);
-  const activities = [];
-  _submissions.forEach(s=>{
-    if(!s.submitted_at) return;
-    const t = new Date(s.submitted_at);
-    if(t < cutoff) return;
-    const hw = _homeworks.find(h=>h.id===s.homework_id);
-    const label = hw?`[${hw.subject}] ${hw.due_date}`:'숙제';
-    let badge = '';
-    if(s.rejection_status==='rejected')      badge='<span class="bdg bdg-rej">❌ 반려</span>';
-    else if(s.rejection_status==='resubmitted') badge='<span class="bdg bdg-resub">🔄 재제출</span>';
-    else if(s.reviewed)                       badge='<span class="bdg bdg-ok">✓ 확인 완료</span>';
-    else                                      badge='<span class="bdg bdg-wait">⏳ 확인 대기</span>';
-    activities.push({time:t, html:`<div class="item-card"><div class="item-card-title">${label} ${badge}</div><div class="item-meta">📸 제출 · ${toKST(s.submitted_at)}</div></div>`});
-  });
-  _extensions.forEach(e=>{
-    if(!e.created_at) return;
-    const t = new Date(e.created_at);
-    if(t < cutoff) return;
-    const hw = _homeworks.find(h=>h.id===e.homework_id);
-    const label = hw?`[${hw.subject}] ${hw.due_date}`:'숙제';
-    const srcLabel = e.source==='parent'?' <span style="font-size:11px;color:#1e40af">(학부모 신청)</span>':'';
-    activities.push({time:t, html:`<div class="item-card"><div class="item-card-title">${label} <span class="bdg bdg-ext">📅 연장 신청</span>${srcLabel}</div><div class="item-meta">🕐 ${e.requested_time||'-'} · ${toKSTDate(e.created_at)}</div></div>`});
-  });
-  activities.sort((a,b)=>b.time-a.time);
-  document.getElementById('recentList').innerHTML = activities.length
-    ? activities.map(a=>a.html).join('')
-    : '<div class="empty-st"><span class="empty-ic">📋</span>최근 한 달 활동 내역이 없습니다</div>';
+  // 공지된 숙제 전체 목록
+  document.getElementById('recentList').innerHTML = myHws.length
+    ? myHws.map(hw=>{
+        const clsObj=(hw.homework_classes||[]).find(c=>c.class_name===_student.class)||(hw.homework_classes||[])[0];
+        const sub = subMap[hw.id];
+        const tb = clsObj?.textbook||'-';
+        const today = new Date().toISOString().slice(0,10);
+        const isOverdue = hw.due_date < today;
+        let badge='';
+        if(sub?.rejection_status==='rejected')      badge='<span class="bdg bdg-rej">❌ 반려</span>';
+        else if(sub?.rejection_status==='resubmitted') badge='<span class="bdg bdg-resub">🔄 재제출</span>';
+        else if(sub?.reviewed)                       badge='<span class="bdg bdg-ok">✓ 확인완료</span>';
+        else if(sub?.submitted)                      badge='<span class="bdg bdg-wait">⏳ 대기중</span>';
+        else if(isOverdue)                           badge='<span class="bdg bdg-rej">📭 미제출</span>';
+        else                                         badge='<span class="bdg" style="background:#f3f4f6;color:#6b7280">📭 미제출</span>';
+        return `<div class="item-card" style="cursor:pointer;active:scale(.98)" onclick="showHWDetail('${hw.id}')">
+          <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px">
+            <div style="font-size:14px;font-weight:700;color:var(--gray-800);flex:1">${tb}</div>
+            ${badge}
+          </div>
+          <div class="item-meta" style="margin-top:5px">⏰ 기한: ${fmtDueP(hw.due_date)} ${fmtTimeP(hw.due_time)}</div>
+        </div>`;
+      }).join('')
+    : '<div class="empty-st"><span class="empty-ic">📚</span>공지된 숙제가 없습니다</div>';
 }
 
 // ── 제출 이력 탭
@@ -526,6 +552,33 @@ document.addEventListener('keydown', e=>{
     if(e.key==='ArrowRight') parentLbNav(1,e);
   }
 });
+
+// ── 숙제 상세 팝업
+function showHWDetail(hwId) {
+  const hw = _homeworks.find(h=>h.id===hwId);
+  if(!hw) return;
+  const clsObj = (hw.homework_classes||[]).find(c=>c.class_name===_student.class)||(hw.homework_classes||[])[0];
+  const tb  = clsObj?.textbook || '-';
+  const pc  = clsObj?.problem_count;
+  const ct  = clsObj?.content  || '';
+  const probStr = pc ? ` (${pc}문제)` : '';
+  const dueFmt  = fmtDueP(hw.due_date);
+  const timeStr = fmtTimeP(hw.due_time);
+  const text = `▶ 교재 : ${tb}${probStr}\n⏭ ${ct}\n★ 기한 : ${dueFmt} ${timeStr}`;
+  window._hwDetailText = text;
+  document.getElementById('hwDetailBubble').textContent = text;
+  document.getElementById('hwDetailCopyBtn').textContent = '📋 카카오톡에 복사하기';
+  document.getElementById('hwDetailModal').style.display = 'flex';
+}
+function closeHWDetail() { document.getElementById('hwDetailModal').style.display = 'none'; }
+function copyHWDetail() {
+  if(!window._hwDetailText) return;
+  navigator.clipboard.writeText(window._hwDetailText).then(()=>{
+    const btn = document.getElementById('hwDetailCopyBtn');
+    btn.textContent = '✅ 복사됐습니다!';
+    setTimeout(()=>btn.textContent='📋 카카오톡에 복사하기', 2000);
+  });
+}
 
 // ── 로딩
 function showLoading() { document.getElementById('loadingOverlay').classList.add('show'); }

@@ -15,13 +15,24 @@
       --gray-600:#4b5563; --gray-800:#1f2937;
     }
     body { background:var(--gray-50); font-family:'Segoe UI','Malgun Gothic',sans-serif; }
-    .sidebar { width:220px; min-height:100vh; background:#fff; border-right:1px solid var(--gray-200); position:fixed; top:0; left:0; z-index:100; }
-    .sidebar-brand { background:var(--primary); color:#fff; padding:20px 16px; font-weight:700; font-size:15px; }
+    .sidebar { width:220px; min-height:100vh; background:#fff; border-right:1px solid var(--gray-200); position:fixed; top:0; left:0; z-index:100; transition:width .25s ease, box-shadow .25s ease; overflow:hidden; }
+    .sidebar.collapsed { width:0; box-shadow:none; }
+    .sidebar-brand { background:var(--primary); color:#fff; padding:20px 16px; font-weight:700; font-size:15px; white-space:nowrap; display:flex; align-items:center; justify-content:space-between; }
     .sidebar-brand span { display:block; font-size:11px; font-weight:400; opacity:.75; margin-top:2px; }
-    .nav-btn { display:flex; align-items:center; gap:10px; padding:11px 18px; color:var(--gray-600); cursor:pointer; border-radius:8px; margin:2px 8px; font-size:14px; transition:all .15s; border:none; background:none; width:calc(100% - 16px); text-align:left; }
+    .sidebar-brand-text { min-width:0; }
+    .hamburger-btn { background:none; border:none; color:#fff; cursor:pointer; padding:4px 6px; border-radius:6px; display:flex; flex-direction:column; gap:4px; flex-shrink:0; }
+    .hamburger-btn span { display:block; width:18px; height:2px; background:#fff; border-radius:2px; transition:all .2s; }
+    .hamburger-btn:hover { background:rgba(255,255,255,.15); }
+    /* 외부 토글 버튼 (사이드바 닫혔을 때) */
+    .sidebar-toggle-ext { position:fixed; top:14px; left:12px; z-index:200; background:var(--primary); border:none; color:#fff; border-radius:8px; padding:8px 10px; cursor:pointer; display:none; flex-direction:column; gap:4px; box-shadow:0 2px 8px rgba(79,70,229,.4); }
+    .sidebar-toggle-ext span { display:block; width:18px; height:2px; background:#fff; border-radius:2px; }
+    .sidebar.collapsed ~ .main .sidebar-toggle-ext,
+    body.sidebar-closed .sidebar-toggle-ext { display:flex; }
+    .nav-btn { display:flex; align-items:center; gap:10px; padding:11px 18px; color:var(--gray-600); cursor:pointer; border-radius:8px; margin:2px 8px; font-size:14px; transition:all .15s; border:none; background:none; width:calc(100% - 16px); text-align:left; white-space:nowrap; }
     .nav-btn:hover { background:var(--primary-light); color:var(--primary); }
     .nav-btn.active { background:var(--primary-light); color:var(--primary); font-weight:600; }
-    .main { margin-left:220px; padding:28px 32px; }
+    .main { margin-left:220px; padding:28px 32px; transition:margin-left .25s ease; }
+    .main.expanded { margin-left:0; padding-left:60px; }
     .page { display:none; } .page.active { display:block; }
     .page-title { font-size:22px; font-weight:700; color:var(--gray-800); margin-bottom:6px; }
     .page-sub { font-size:13px; color:var(--gray-600); margin-bottom:24px; }
@@ -150,9 +161,19 @@ function checkPw() {
 <!-- Toast -->
 <div class="toast-c" id="toastC"></div>
 
+<!-- 사이드바 닫혔을 때 보이는 외부 토글 버튼 -->
+<button class="sidebar-toggle-ext" id="sidebarToggleExt" onclick="toggleSidebar()">
+  <span></span><span></span><span></span>
+</button>
+
 <!-- Sidebar -->
-<div class="sidebar">
-  <div class="sidebar-brand">🎓 숙제 관리<span>선생님 전용 대시보드</span></div>
+<div class="sidebar" id="sidebar">
+  <div class="sidebar-brand">
+    <div class="sidebar-brand-text">🎓 숙제 관리<span>선생님 전용 대시보드</span></div>
+    <button class="hamburger-btn" onclick="toggleSidebar()" title="메뉴 닫기">
+      <span></span><span></span><span></span>
+    </button>
+  </div>
   <nav style="padding:12px 0">
     <button class="nav-btn active" onclick="showPage('dashboard')">📊 대시보드</button>
     <button class="nav-btn" onclick="showPage('photos')">📸 제출 사진 <span id="newCount" class="new-badge" style="display:none">NEW</span></button>
@@ -163,6 +184,7 @@ function checkPw() {
     <button class="nav-btn" onclick="showPage('history')">📋 학생 이력</button>
     <button class="nav-btn" onclick="showPage('templates')">🔁 고정 숙제</button>
     <button class="nav-btn" onclick="showPage('students')">👥 학생 관리</button>
+    <button class="nav-btn" onclick="showPage('daily')">📢 일일 미제출자</button>
   </nav>
   <div style="position:absolute;bottom:16px;left:0;right:0;padding:0 8px">
     <a href="student.html" target="_blank" style="display:block;background:#FEE500;color:#3C1E1E;text-align:center;padding:10px;border-radius:8px;font-size:13px;font-weight:700;text-decoration:none">📱 학생 제출 페이지</a>
@@ -235,10 +257,13 @@ function checkPw() {
     <div class="page-title">💬 카카오톡 메시지 생성</div>
     <div class="page-sub">숙제를 여러 개 선택하면 한 번에 합쳐서 메시지가 생성됩니다</div>
     <div class="card-c mb-4">
-      <div class="card-h">
+      <div class="card-h d-flex justify-content-between align-items-center">
         <span>📚 숙제 선택 (체크하면 바로 메시지 생성)</span>
+        <select class="fc" style="width:auto;font-size:13px;padding:5px 10px" id="msgClsFilter" onchange="renderMsgHWList()">
+          <option value="">전체 반</option>
+        </select>
       </div>
-      <div id="msgHWList" style="padding:12px 20px;max-height:260px;overflow-y:auto;border-top:1px solid var(--gray-200)">
+      <div id="msgHWList" style="padding:8px 20px;max-height:210px;overflow-y:auto;border-top:1px solid var(--gray-200)">
         <div class="empty-st" style="padding:16px"><span>숙제를 불러오는 중...</span></div>
       </div>
     </div>
@@ -317,6 +342,41 @@ function checkPw() {
     </div>
   </div>
 
+  <!-- DAILY MISSING REPORT -->
+  <div class="page" id="page-daily">
+    <div class="page-title">📢 일일 미제출자 메시지</div>
+    <div class="page-sub">날짜를 선택하면 카카오톡 발송용 미제출자 메시지가 자동으로 생성됩니다</div>
+    <div class="d-flex gap-2 mb-3 align-items-center flex-wrap">
+      <input type="date" class="fc" id="dailyDate" style="width:180px">
+      <button class="btn-p" onclick="generateDailyMsg()">📋 메시지 생성</button>
+      <button class="btn-o" onclick="copyDailyMsg()">📄 전체 복사</button>
+    </div>
+    <div class="row g-3">
+      <div class="col-md-6">
+        <div class="card-c">
+          <div class="card-h d-flex justify-content-between align-items-center">
+            <span>📨 카카오톡 미리보기</span>
+            <button class="btn-kakao" onclick="copyDailyMsg()">📋 복사</button>
+          </div>
+          <div style="padding:16px">
+            <div class="kakao-prev" id="dailyKakaoPrev" style="min-height:120px">
+              <div style="font-size:12px;color:#555;margin-bottom:4px;font-weight:600">선생님</div>
+              <div class="kakao-bubble" id="dailyBubble" style="font-size:13px;line-height:2;min-height:60px;color:#aaa">날짜를 선택하고 메시지 생성을 눌러주세요</div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="col-md-6">
+        <div class="card-c">
+          <div class="card-h">📋 미제출자 상세</div>
+          <div id="dailyDetail" style="padding:12px 16px;font-size:13px;color:#555;min-height:80px">
+            <div style="color:#aaa;text-align:center;padding:24px">메시지 생성 후 확인됩니다</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
   <!-- GRADES -->
   <div class="page" id="page-grades">
     <div class="page-title">⭐ 채점 결과</div>
@@ -333,23 +393,16 @@ function checkPw() {
 
 <!-- HW MODAL -->
 <div class="modal-ov" id="hwModal">
-  <div class="modal-bx">
+  <div class="modal-bx" style="width:580px">
     <div class="modal-hd"><span style="font-weight:700;font-size:16px" id="hwModalTitle">숙제 등록</span><button onclick="closeModal('hwModal')" style="background:none;border:none;font-size:22px;cursor:pointer;color:#999">&times;</button></div>
     <div class="modal-bd">
       <input type="hidden" id="hwEditId">
       <div class="row g-2 mb-3">
-        <div class="col-4"><label style="font-size:13px;font-weight:500;color:#666;display:block;margin-bottom:4px">공지 날짜 *</label><input type="date" class="fc" id="hwAssign"></div>
-        <div class="col-5"><label style="font-size:13px;font-weight:500;color:#666;display:block;margin-bottom:4px">제출 기한 *</label><input type="date" class="fc" id="hwDue"></div>
-        <div class="col-3"><label style="font-size:13px;font-weight:500;color:#666;display:block;margin-bottom:4px">제출 시간 *</label><input type="time" class="fc" id="hwDueTime" value="23:59"></div>
+        <div class="col-6"><label style="font-size:13px;font-weight:500;color:#666;display:block;margin-bottom:4px">공지 날짜 *</label><input type="date" class="fc" id="hwAssign"></div>
       </div>
-      <div class="d-flex justify-content-between align-items-center mb-2">
-        <label style="font-size:14px;font-weight:600;color:var(--primary)">🏫 반별 숙제 내용</label>
-        <div class="d-flex gap-2">
-          <button class="btn-o" style="font-size:12px;padding:5px 12px;background:#fffde7;border-color:#FEE500" onclick="loadTemplateRows()">📂 고정 숙제 불러오기</button>
-          <button class="btn-o" style="font-size:12px;padding:5px 12px" onclick="addClsRow()">+ 반 추가</button>
-        </div>
-      </div>
-      <div id="clsRows"></div>
+      <div style="font-size:14px;font-weight:600;color:var(--primary);margin-bottom:8px">🏫 반 선택 (체크하면 해당 반 숙제 설정)</div>
+      <div id="clsCheckWrap" style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:14px"></div>
+      <div id="clsPanels"></div>
     </div>
     <div class="modal-ft"><button class="btn-o" onclick="closeModal('hwModal')">취소</button><button class="btn-p" onclick="saveHW()">💾 저장</button></div>
   </div>
@@ -491,6 +544,16 @@ function openModal(id){document.getElementById(id).classList.add('show');}
 function closeModal(id){document.getElementById(id).classList.remove('show');}
 document.querySelectorAll('.modal-ov').forEach(m=>m.addEventListener('click',e=>{if(e.target===m)closeModal(m.id);}));
 
+// ---- SIDEBAR TOGGLE ----
+function toggleSidebar() {
+  const sb = document.getElementById('sidebar');
+  const main = document.querySelector('.main');
+  const extBtn = document.getElementById('sidebarToggleExt');
+  const collapsed = sb.classList.toggle('collapsed');
+  main.classList.toggle('expanded', collapsed);
+  extBtn.style.display = collapsed ? 'flex' : 'none';
+}
+
 function getDueBadge(d){ if(!d)return ''; const due=new Date(d+'T00:00:00');const now=new Date();now.setHours(0,0,0,0);const diff=Math.ceil((due-now)/86400000); if(diff<0)return`<span style="background:#fee2e2;color:#991b1b;padding:2px 8px;border-radius:20px;font-size:12px">마감초과</span>`; if(diff===0)return`<span style="background:#fee2e2;color:#991b1b;padding:2px 8px;border-radius:20px;font-size:12px;font-weight:700">D-DAY</span>`; if(diff<=3)return`<span style="background:#fef3c7;color:#92400e;padding:2px 8px;border-radius:20px;font-size:12px">D-${diff}</span>`; return`<span style="background:#dcfce7;color:#166534;padding:2px 8px;border-radius:20px;font-size:12px">D-${diff}</span>`; }
 
 function getClasses() { return [...new Set(_students.map(s=>s.class))].sort(); }
@@ -511,6 +574,10 @@ function showPage(name) {
   if(name==='missing') loadMissing();
   if(name==='history') { filterHistStudents(); }
   if(name==='templates') loadTemplates();
+  if(name==='daily') {
+    const inp = document.getElementById('dailyDate');
+    if(!inp.value) inp.value = new Date().toISOString().slice(0,10);
+  }
 }
 
 // ---- POPULATE SELECTS ----
@@ -741,37 +808,87 @@ function lbNav(dir, e) { e.stopPropagation(); lbIdx = (lbIdx + dir + lbImages.le
 document.addEventListener('keydown', e => { if(document.getElementById('lightbox').classList.contains('show')){ if(e.key==='Escape')closeLightbox(); if(e.key==='ArrowLeft')lbNav(-1,e); if(e.key==='ArrowRight')lbNav(1,e); }});
 
 // ---- HOMEWORK ----
-let clsRowCnt2=0;
-function addClsRow(data) {
-  clsRowCnt2++;
-  const c = clsRowCnt2;
-  const classes = getClasses();
-  const dlId = `dl_cls_${c}`;
-  // 기존 problem_count에서 시작P/끝P 파싱
-  const pc = data?.problem_count || '';
-  const parts = String(pc).split('~');
-  const startP = parts[0].replace(/[^0-9]/g,'') || '';
-  const endP = (parts[1] || '').replace(/[^0-9]/g,'') || '';
-  const el = document.createElement('div'); el.className='class-row'; el.id=`cr_${c}`;
-  el.innerHTML=`
-  <datalist id="${dlId}">${classes.map(cls=>`<option value="${cls}">`).join('')}</datalist>
-  <div class="d-flex justify-content-between mb-2"><span style="font-size:13px;font-weight:600;color:var(--primary)">🏫 반 정보</span><button type="button" style="background:none;border:none;cursor:pointer;color:#ef4444;font-size:16px" onclick="document.getElementById('cr_${c}').remove()">✖</button></div>
-  <div class="row g-2 align-items-center mb-1">
-    <div class="col-3"><input list="${dlId}" type="text" class="fc cr-n" placeholder="반 이름" value="${data?.class_name||''}"></div>
-    <div class="col-4"><input type="text" class="fc cr-t" placeholder="교재명" value="${data?.textbook||''}"></div>
-    <div class="col-3"><input type="number" class="fc cr-p" placeholder="문제수 (선택)" min="0" value="${data?.problem_count||''}"><div style="font-size:11px;color:#aaa;margin-top:2px">없으면 빈칸</div></div>
-    <div class="col-2" style="font-size:12px;color:#999;text-align:center">↕ 문제수</div>
-  </div>
-  <div class="row g-1 align-items-center mb-1">
-    <div class="col-auto" style="font-size:12px;color:#888;padding-right:4px">페이지:</div>
-    <div class="col-2"><input type="number" class="fc cr-ps" placeholder="시작" min="0" value="${startP}" style="text-align:center;padding:6px 4px"></div>
-    <div class="col-auto" style="font-weight:700;color:#666">p ~</div>
-    <div class="col-2"><input type="number" class="fc cr-pe" placeholder="끝" min="0" value="${endP}" style="text-align:center;padding:6px 4px"></div>
-    <div class="col-auto" style="color:#666">p</div>
-    <div class="col-auto" style="font-size:11px;color:#aaa">↕ 페이지 범위 (선택)</div>
-  </div>
-  <div class="col-12"><textarea class="fc cr-c" placeholder="상세 내용 (예: 36-70번 풀기, 오답노트 작성 등)" rows="2" style="resize:vertical">${data?.content||''}</textarea></div>`;
-  document.getElementById('clsRows').appendChild(el);
+let clsRowCnt2=0; // kept for compatibility
+
+function _safeCls(cls){ return cls.replace(/[^a-zA-Z0-9]/g,'_'); }
+
+function addClsCheckbox(cls) {
+  const sid = _safeCls(cls);
+  const wrap = document.getElementById('clsCheckWrap');
+  const lbl = document.createElement('label');
+  lbl.id = `clslbl_${sid}`;
+  lbl.style.cssText = 'display:flex;align-items:center;gap:6px;background:#f3f4f6;border:1.5px solid #e5e7eb;border-radius:20px;padding:6px 14px;cursor:pointer;font-size:13px;font-weight:600;transition:all .15s;user-select:none';
+  lbl.innerHTML = `<input type="checkbox" id="clscb_${sid}" style="width:14px;height:14px;cursor:pointer" onchange="toggleClsPanel('${cls}',this.checked)"> ${cls}반`;
+  wrap.appendChild(lbl);
+}
+
+function toggleClsPanel(cls, checked, preData=null, preDue=null, preTime=null) {
+  const sid = _safeCls(cls);
+  const panelId = `cpanel_${sid}`;
+  const lbl = document.getElementById(`clslbl_${sid}`);
+  if (!checked) {
+    document.getElementById(panelId)?.remove();
+    if(lbl){lbl.style.background='#f3f4f6';lbl.style.borderColor='#e5e7eb';lbl.style.color='';}
+    return;
+  }
+  if (document.getElementById(panelId)) return;
+  const def = getDefaultDue();
+  const dueDate = preDue || def.date;
+  const dueTime = preTime || '23:59';
+  const pc = preData?.problem_count || '';
+  // 페이지 범위는 content에서 파싱 (예: "36~70번 풀기" → 36, 70)
+  const contentStr = preData?.content || '';
+  const pageMatch = contentStr.match(/^(\d+)\s*~\s*(\d+)\s*번/);
+  const startP = pageMatch ? pageMatch[1] : '';
+  const endP   = pageMatch ? pageMatch[2] : '';
+  const div = document.createElement('div');
+  div.className='class-row'; div.id=panelId; div.dataset.cls=cls;
+  div.innerHTML=`
+    <div class="d-flex justify-content-between align-items-center mb-2">
+      <span style="font-size:13px;font-weight:700;color:var(--primary)">🏫 ${cls}반</span>
+      <button type="button" class="btn-o" style="font-size:11px;padding:3px 10px;background:#fffde7;border-color:#FEE500" onclick="loadTemplateForCls('${cls}')">📂 고정 숙제 불러오기</button>
+    </div>
+    <div class="row g-2 mb-2">
+      <div class="col-5"><label style="font-size:12px;color:#666;display:block;margin-bottom:3px">제출 기한 *</label><input type="date" class="fc cp-due" id="cpdue_${sid}" value="${dueDate}"></div>
+      <div class="col-3"><label style="font-size:12px;color:#666;display:block;margin-bottom:3px">시간</label><input type="time" class="fc cp-time" id="cptime_${sid}" value="${dueTime}"></div>
+    </div>
+    <div class="row g-2 align-items-center mb-1">
+      <div class="col-5"><input type="text" class="fc cp-t" placeholder="교재명" value="${preData?.textbook||''}"></div>
+      <div class="col-3"><input type="number" class="fc cp-p" placeholder="문제수 (선택)" min="0" value="${pc}"><div style="font-size:10px;color:#aaa;margin-top:1px">없으면 빈칸</div></div>
+    </div>
+    <div class="row g-1 align-items-center mb-1">
+      <div class="col-auto" style="font-size:12px;color:#888">페이지:</div>
+      <div class="col-2"><input type="number" class="fc cp-ps" placeholder="시작" min="0" value="${startP}" style="text-align:center;padding:6px 4px"></div>
+      <div class="col-auto" style="font-weight:700;color:#666">p ~</div>
+      <div class="col-2"><input type="number" class="fc cp-pe" placeholder="끝" min="0" value="${endP}" style="text-align:center;padding:6px 4px"></div>
+      <div class="col-auto" style="color:#666">p</div>
+    </div>
+    <div><textarea class="fc cp-c" placeholder="상세 내용 (예: 36-70번 풀기, 오답노트 작성 등)" rows="2" style="resize:vertical">${preData?.content||''}</textarea></div>`;
+  document.getElementById('clsPanels').appendChild(div);
+  if(lbl){lbl.style.background='var(--primary-light)';lbl.style.borderColor='var(--primary)';lbl.style.color='var(--primary)';}
+}
+
+function loadTemplateForCls(cls) {
+  const sid = _safeCls(cls);
+  const dueInput = document.getElementById(`cpdue_${sid}`);
+  const due = dueInput?.value;
+  if (!due) { toast('먼저 제출 기한을 선택하세요', 'info'); return; }
+  const dayNum = new Date(due+'T00:00:00').getDay();
+  const t = _templates[`${cls}_${dayNum}`];
+  if (!t || (!t.textbook && !t.content)) { toast(`${cls}반의 해당 요일 고정 숙제가 없습니다`, 'info'); return; }
+  const panel = document.getElementById(`cpanel_${sid}`);
+  if (!panel) return;
+  if(t.textbook) panel.querySelector('.cp-t').value = t.textbook;
+  if(t.problem_count) panel.querySelector('.cp-p').value = t.problem_count;
+  if(t.content) {
+    panel.querySelector('.cp-c').value = t.content;
+    // content에서 페이지 범위 자동 파싱 (예: "36~70번 풀기")
+    const pm = t.content.match(/^(\d+)\s*~\s*(\d+)\s*번/);
+    if(pm) { panel.querySelector('.cp-ps').value = pm[1]; panel.querySelector('.cp-pe').value = pm[2]; }
+    else { panel.querySelector('.cp-ps').value = ''; panel.querySelector('.cp-pe').value = ''; }
+  }
+  if(t.due_time) document.getElementById(`cptime_${sid}`).value = t.due_time;
+  toast(`${cls}반 고정 숙제를 불러왔습니다`);
 }
 
 function getDefaultDue() {
@@ -792,52 +909,76 @@ function getDefaultDue() {
 function openHWModal(id) {
   document.getElementById('hwEditId').value = id||'';
   document.getElementById('hwModalTitle').textContent = id?'숙제 수정':'숙제 등록';
-  document.getElementById('clsRows').innerHTML=''; clsRowCnt2=0;
-  const today=new Date().toISOString().slice(0,10);
-  const def=getDefaultDue();
-  if(id){
-    const hw=_homeworks.find(h=>h.id===id);
-    if(hw){
-      document.getElementById('hwAssign').value=hw.assign_date;
-      document.getElementById('hwDue').value=hw.due_date;
-      document.getElementById('hwDueTime').value=hw.due_time||'12:00';
-      (hw.homework_classes||[]).forEach(c=>addClsRow(c));
+  // 초기화
+  document.getElementById('clsCheckWrap').innerHTML = '';
+  document.getElementById('clsPanels').innerHTML = '';
+  const today = new Date().toISOString().slice(0,10);
+  document.getElementById('hwAssign').value = today;
+  if(id) {
+    const hw = _homeworks.find(h=>h.id===id);
+    if(hw) {
+      document.getElementById('hwAssign').value = hw.assign_date;
+      // 전체 반 체크박스 추가
+      getClasses().forEach(cls => addClsCheckbox(cls));
+      // 기존 반들은 체크하고 패널 열기
+      (hw.homework_classes||[]).forEach(c => {
+        const sid = _safeCls(c.class_name);
+        let cb = document.getElementById('clscb_'+sid);
+        if(!cb) { addClsCheckbox(c.class_name); cb = document.getElementById('clscb_'+sid); }
+        if(cb) { cb.checked = true; toggleClsPanel(c.class_name, true, c, hw.due_date, hw.due_time||'23:59'); }
+      });
     }
   } else {
-    document.getElementById('hwAssign').value=today;
-    document.getElementById('hwDue').value=def.date;
-    document.getElementById('hwDueTime').value=def.time;
-    addClsRow();
+    getClasses().forEach(cls => addClsCheckbox(cls));
   }
   openModal('hwModal');
 }
 
 async function saveHW() {
-  const subject='수학';
-  const assignDate=document.getElementById('hwAssign').value;
-  const dueDate=document.getElementById('hwDue').value;
-  const dueTime=document.getElementById('hwDueTime').value||'12:00';
-  if(!assignDate||!dueDate){toast('날짜를 입력해주세요','danger');return;}
-  const rows=[...document.querySelectorAll('#clsRows .class-row')].map(r=>{const ps=r.querySelector('.cr-ps')?.value.trim()||'';const pe=r.querySelector('.cr-pe')?.value.trim()||'';const pc=r.querySelector('.cr-p')?.value.trim()||'';let ct=r.querySelector('.cr-c').value.trim();if(!ct&&ps&&pe)ct=`${ps}~${pe}번`;return{class_name:r.querySelector('.cr-n').value.trim(),textbook:r.querySelector('.cr-t').value.trim(),problem_count:pc,content:ct};}).filter(r=>r.class_name||r.textbook);
-  if(!rows.length){toast('반 정보를 입력해주세요','danger');return;}
-  const editId=document.getElementById('hwEditId').value;
+  const subject = '수학';
+  const assignDate = document.getElementById('hwAssign').value;
+  if(!assignDate) { toast('공지 날짜를 입력해주세요','danger'); return; }
+  const panels = [...document.querySelectorAll('#clsPanels .class-row')];
+  if(!panels.length) { toast('반을 체크하고 숙제를 입력해주세요','danger'); return; }
+  const editId = document.getElementById('hwEditId').value;
+  function getPanelData(panel) {
+    const cls = panel.dataset.cls;
+    const sid = _safeCls(cls);
+    const dueDate = document.getElementById('cpdue_'+sid)?.value || '';
+    const dueTime = document.getElementById('cptime_'+sid)?.value || '23:59';
+    const ps = panel.querySelector('.cp-ps')?.value.trim()||'';
+    const pe = panel.querySelector('.cp-pe')?.value.trim()||'';
+    const pc = panel.querySelector('.cp-p')?.value.trim()||'';
+    let ct = panel.querySelector('.cp-c')?.value.trim()||'';
+    if(!ct && ps && pe) ct = `${ps}~${pe}번`;
+    return { cls, dueDate, dueTime, textbook: panel.querySelector('.cp-t')?.value.trim()||'', problem_count: pc||null, content: ct };
+  }
   try {
-    if(editId){
-      await db.from('homeworks').update({subject,assign_date:assignDate,due_date:dueDate,due_time:dueTime}).eq('id',editId);
+    if(editId) {
+      // 수정: 첫 번째 패널 기준으로 기존 숙제 업데이트
+      const d = getPanelData(panels[0]);
+      if(!d.dueDate) { toast(`${d.cls}반 제출 기한을 입력해주세요`,'danger'); return; }
+      await db.from('homeworks').update({subject, assign_date:assignDate, due_date:d.dueDate, due_time:d.dueTime}).eq('id',editId);
       await db.from('homework_classes').delete().eq('homework_id',editId);
-      await db.from('homework_classes').insert(rows.map(r=>({...r,homework_id:editId})));
+      const rows = panels.map(p => { const pd=getPanelData(p); return {class_name:pd.cls,textbook:pd.textbook,problem_count:pd.problem_count,content:pd.content,homework_id:editId}; });
+      await db.from('homework_classes').insert(rows);
       toast('숙제가 수정되었습니다');
     } else {
-      const {data,error}=await db.from('homeworks').insert({subject,assign_date:assignDate,due_date:dueDate,due_time:dueTime}).select().single();
-      if(error)throw error;
-      await db.from('homework_classes').insert(rows.map(r=>({...r,homework_id:data.id})));
-      toast('숙제가 등록되었습니다');
+      // 신규: 반별로 숙제 각각 등록
+      for(const panel of panels) {
+        const d = getPanelData(panel);
+        if(!d.dueDate) { toast(`${d.cls}반 제출 기한을 입력해주세요`,'danger'); return; }
+        const {data,error} = await db.from('homeworks').insert({subject, assign_date:assignDate, due_date:d.dueDate, due_time:d.dueTime}).select().single();
+        if(error) throw error;
+        await db.from('homework_classes').insert({homework_id:data.id, class_name:d.cls, textbook:d.textbook, problem_count:d.problem_count, content:d.content});
+      }
+      toast(`${panels.length}개 반 숙제가 등록되었습니다`);
     }
     await loadHomeworks();
     closeModal('hwModal');
     renderHomework();
     populateSelects();
-  } catch(e){toast('오류: '+e.message,'danger');}
+  } catch(e) { toast('오류: '+e.message,'danger'); }
 }
 
 async function deleteHW(id) {
@@ -882,9 +1023,26 @@ function goMsg(hwId){
 }
 
 function renderMsgHWList() {
-  const el=document.getElementById('msgHWList');
-  if(!_homeworks.length){el.innerHTML='<div style="color:#999;font-size:13px;padding:8px">등록된 숙제가 없습니다</div>';return;}
-  el.innerHTML=_homeworks.map(h=>`
+  const el = document.getElementById('msgHWList');
+  // 반 필터 옵션 초기화 (한 번만)
+  const clsSel = document.getElementById('msgClsFilter');
+  if (clsSel && clsSel.options.length <= 1) {
+    getClasses().forEach(cls => {
+      const opt = document.createElement('option');
+      opt.value = cls; opt.textContent = cls + '반';
+      clsSel.appendChild(opt);
+    });
+  }
+  const clsFilter = clsSel?.value || '';
+  const filtered = (clsFilter
+    ? _homeworks.filter(h => hwCls(h).length === 0 || hwCls(h).includes(clsFilter))
+    : _homeworks.slice()
+  ).sort((a,b) => ((a.due_date||'')+(a.due_time||'')).localeCompare((b.due_date||'')+(b.due_time||'')));
+  if (!filtered.length) {
+    el.innerHTML = '<div style="color:#999;font-size:13px;padding:8px">' + (clsFilter ? clsFilter+'반 숙제가 없습니다' : '등록된 숙제가 없습니다') + '</div>';
+    return;
+  }
+  el.innerHTML = filtered.map(h => `
     <label style="display:flex;align-items:center;gap:10px;padding:8px 4px;border-bottom:1px solid var(--gray-100);cursor:pointer">
       <input type="checkbox" id="msgcb_${h.id}" value="${h.id}" style="width:16px;height:16px;cursor:pointer" onchange="renderMessages()">
       <span style="font-size:13px"><strong>${hwCls(h).join('/')}</strong> — ${h.assign_date} 공지 / 기한: ${h.due_date} ${h.due_time||''}${getDueBadge(h.due_date)}</span>
@@ -899,8 +1057,8 @@ function generateCombinedMsg(className, hwList) {
   const blocks=hwList.map(({hw,clsObj,students})=>{
     const tb=clsObj.textbook||''; const pc=clsObj.problem_count; const ct=clsObj.content||'';
     const prob=pc?` (${pc}문제)`:'';
-    const time=hw.due_time||'12:00'; const hour=parseInt(time.split(':')[0]);
-    const timeStr=hour>=12?`밤${hour===12?12:hour-12}시`:`오전${hour}시`;
+    const time=hw.due_time||'12:00'; const hour=parseInt(time.split(':')[0]); const minute=parseInt((time.split(':')[1])||'0');
+    const timeStr=(hour===23)? '자정(12시)' : hour>=12?`밤${hour===12?12:hour-12}시`:`오전${hour}시`;
     const stuLine=(students&&students.length)?`\n■ ${students.map(s=>s.name).join(', ')}`:'';
     return `▶ 교재 : ${tb}${prob}\n⏭ ${ct}\n★ 기한 : ${fmtDue(hw.due_date)} ${timeStr}${stuLine}`;
   }).join('\n\n');
@@ -1377,26 +1535,122 @@ async function saveTemplates() {
 }
 
 function loadTemplateRows() {
-  const due=document.getElementById('hwDue').value;
-  if(!due){toast('먼저 제출 기한을 선택하세요','info');return;}
-  const dt=new Date(due+'T00:00:00');
-  const dayNum=dt.getDay(); // 0=일,1=월...6=토
-  const classes=getClasses();
-  document.getElementById('clsRows').innerHTML=''; clsRowCnt2=0;
-  let added=0; let firstTime='23:59';
-  classes.forEach(cls=>{
-    const t=_templates[`${cls}_${dayNum}`];
-    if(t?.textbook||t?.content){
-      addClsRow({class_name:cls,textbook:t.textbook||'',content:t.content||'',problem_count:t.problem_count||''});
-      if(added===0&&t.due_time) firstTime=t.due_time;
-      added++;
+  // 구 시스템용 함수 - 새 모달에서는 각 반 패널의 '고정 숙제 불러오기' 버튼을 사용하세요
+  toast('각 반 패널의 📂 고정 숙제 불러오기 버튼을 이용해주세요', 'info');
+}
+
+// ---- DAILY MISSING REPORT ----
+function fmtDailyDate(dateStr) {
+  if(!dateStr) return '';
+  const dt = new Date(dateStr+'T00:00:00');
+  const mm = String(dt.getMonth()+1).padStart(2,'0');
+  const dd = String(dt.getDate()).padStart(2,'0');
+  return `${mm}/${dd}(${DAYS[dt.getDay()]})`;
+}
+
+async function generateDailyMsg() {
+  const dateStr = document.getElementById('dailyDate').value;
+  if(!dateStr) { toast('날짜를 선택해주세요','danger'); return; }
+
+  // 최신 데이터 로드
+  await loadSubmissions();
+  if(!_extensions.length) await loadExtensions();
+
+  // 해당 날짜 기한 숙제 / 전일까지 기한 숙제
+  const todayHWs = _homeworks.filter(h => h.due_date === dateStr);
+  const prevHWs  = _homeworks.filter(h => h.due_date < dateStr);
+
+  // 날짜 포맷
+  const dateLabel = fmtDailyDate(dateStr);
+
+  // 연장 신청 목록 (approved or pending) → 이유 표시용
+  const extMap = {}; // "stuId_hwId" → reason
+  _extensions.forEach(e => {
+    if(e.status==='approved'||e.status==='pending') {
+      extMap[`${e.student_id}_${e.homework_id}`] = e.reason||'';
     }
   });
-  if(!added){toast('해당 요일에 설정된 고정 숙제가 없습니다','info');addClsRow();}
-  else{
-    document.getElementById('hwDueTime').value=firstTime;
-    toast(`${added}개 반 숙제가 불러와졌습니다`);
+
+  function getMissingStudents(hwList) {
+    const clsMap = {};
+    getClasses().forEach(cls => { clsMap[cls] = { noHW: true, missing: [] }; });
+    hwList.forEach(hw => {
+      const clsList = hwCls(hw);
+      const relevantCls = clsList.length ? clsList : getClasses();
+      relevantCls.forEach(cls => {
+        if(!clsMap[cls]) clsMap[cls] = { noHW: true, missing: [] };
+        clsMap[cls].noHW = false;
+        const sub = _submissions[hw.id]||{};
+        const stuList = _students.filter(s=>s.class===cls);
+        stuList.filter(s => !sub[s.id]?.submitted || sub[s.id]?.rejection_status==='rejected').forEach(s => {
+          if(!clsMap[cls].missing.find(m=>m.name===s.name)) {
+            clsMap[cls].missing.push({ name: s.name, reason: extMap[`${s.id}_${hw.id}`]||'' });
+          }
+        });
+      });
+    });
+    return clsMap;
   }
+
+  const todayMap = getMissingStudents(todayHWs);
+  const prevMap  = getMissingStudents(prevHWs);
+
+  // 오늘 미제출자 섹션
+  let msg = `[${dateLabel} 미제출자]\n`;
+  const classes = getClasses();
+  classes.forEach(cls => {
+    const info = todayMap[cls];
+    if(!info) return;
+    if(info.noHW) {
+      msg += `${cls} - 숙제없음\n`;
+    } else if(info.missing.length===0) {
+      msg += `${cls} - 전원완료✅\n`;
+    } else {
+      const names = info.missing.map(s => s.reason ? `${s.name}(${s.reason})` : s.name).join(', ');
+      msg += `${cls} - ${names}\n`;
+    }
+  });
+
+  // 전일 미제출자 섹션
+  const prevMissingLines = [];
+  classes.forEach(cls => {
+    const info = prevMap[cls];
+    if(!info || info.noHW || info.missing.length===0) return;
+    const names = info.missing.map(s => s.name).join(', ');
+    prevMissingLines.push(`${cls} - ${names}`);
+  });
+  if(prevMissingLines.length) {
+    msg += `\n[전일 미제출자]\n` + prevMissingLines.join('\n');
+  }
+
+  // 미리보기 업데이트
+  window._dailyMsg = msg;
+  document.getElementById('dailyBubble').style.color = '';
+  document.getElementById('dailyBubble').innerHTML = escH(msg);
+
+  // 상세 패널 업데이트
+  let detailHtml = `<div style="font-weight:700;color:var(--primary);margin-bottom:10px">📅 ${dateLabel} 기준</div>`;
+  detailHtml += `<div style="font-size:12px;font-weight:600;color:#555;margin-bottom:6px">오늘 기한 숙제: ${todayHWs.length}개 / 전일 미처리 숙제: ${prevHWs.length}개</div>`;
+  classes.forEach(cls => {
+    const info = todayMap[cls];
+    if(!info || info.noHW) return;
+    const done = info.missing.length === 0;
+    const color = done ? '#dcfce7' : '#fee2e2';
+    const text  = done ? '전원완료' : `미제출 ${info.missing.length}명`;
+    detailHtml += `<div style="display:flex;align-items:center;gap:8px;padding:5px 0;border-bottom:1px solid #f3f4f6">
+      <span style="font-weight:600;min-width:70px">${cls}</span>
+      <span style="background:${color};padding:2px 8px;border-radius:12px;font-size:11px;font-weight:600">${text}</span>
+      ${info.missing.length?`<span style="font-size:12px;color:#555">${info.missing.map(s=>s.reason?`${s.name}(${s.reason})`:s.name).join(', ')}</span>`:''}
+    </div>`;
+  });
+  document.getElementById('dailyDetail').innerHTML = detailHtml;
+  toast('미제출자 메시지가 생성되었습니다');
+}
+
+function copyDailyMsg() {
+  const msg = window._dailyMsg;
+  if(!msg) { toast('먼저 메시지를 생성해주세요','info'); return; }
+  navigator.clipboard.writeText(msg).then(()=>toast('클립보드에 복사되었습니다!'));
 }
 
 function exportCSV(hwId){

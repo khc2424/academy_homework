@@ -113,6 +113,15 @@
   </div>
 </div>
 
+<!-- 라이트박스 -->
+<div id="parentLightbox" onclick="closeParentLb()" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.92);z-index:9999;align-items:center;justify-content:center">
+  <button onclick="closeParentLb()" style="position:absolute;top:16px;right:20px;background:none;border:none;color:#fff;font-size:32px;cursor:pointer">✕</button>
+  <button onclick="parentLbNav(-1,event)" style="position:absolute;left:16px;top:50%;transform:translateY(-50%);background:rgba(255,255,255,.2);border:none;color:#fff;font-size:28px;padding:8px 14px;cursor:pointer;border-radius:8px" id="parentLbPrev">‹</button>
+  <img id="parentLbImg" src="" style="max-width:92vw;max-height:90vh;border-radius:8px;object-fit:contain">
+  <button onclick="parentLbNav(1,event)" style="position:absolute;right:16px;top:50%;transform:translateY(-50%);background:rgba(255,255,255,.2);border:none;color:#fff;font-size:28px;padding:8px 14px;cursor:pointer;border-radius:8px" id="parentLbNext">›</button>
+  <div id="parentLbCount" style="position:absolute;bottom:20px;color:rgba(255,255,255,.7);font-size:13px"></div>
+</div>
+
 <!-- 앱 -->
 <div id="app">
   <div class="app-header">
@@ -251,12 +260,12 @@ async function doLogin() {
   });
   if (!matched) { errEl.textContent='이름 또는 전화번호가 일치하지 않습니다.'; errEl.style.display='block'; return; }
   _student = matched;
-  sessionStorage.setItem('parentStudent', JSON.stringify(matched));
+  localStorage.setItem('parentStudent', JSON.stringify(matched));
   await initApp();
 }
 
 function doLogout() {
-  sessionStorage.removeItem('parentStudent');
+  localStorage.removeItem('parentStudent');
   _student=null; _submissions=[]; _extensions=[]; _homeworks=[];
   document.getElementById('loginWrap').style.display='flex';
   document.getElementById('app').style.display='none';
@@ -375,15 +384,20 @@ function renderSubmissions() {
     } else if(s.submitted){
       statusBadge='<span class="bdg bdg-wait">⏳ 확인 대기</span>';
     }
-    const photoCount = (s.photo_urls||[]).length;
+    const photos = s.photo_urls || [];
+    const photosEsc = JSON.stringify(photos).replace(/'/g,'&#39;');
+    const thumbsHtml = photos.length ? `
+      <div style="display:flex;flex-wrap:wrap;gap:6px;margin-top:10px">
+        ${photos.map((url,i) => `<img src="${url}" onclick='openParentLb(${photosEsc},${i})' style="width:64px;height:64px;object-fit:cover;border-radius:8px;cursor:pointer;border:2px solid var(--gray-200);transition:.15s" onmouseover="this.style.borderColor='#4f46e5'" onmouseout="this.style.borderColor='var(--gray-200)'">`).join('')}
+      </div>` : '';
     return `<div class="item-card">
       <div class="item-card-title">${label} ${statusBadge}</div>
       <div class="item-meta">
         ${clsObj?`📖 ${clsObj.textbook||'-'}${clsObj.problem_count?` (${clsObj.problem_count}문제)`:''}`:'' }
         ${clsObj&&clsObj.content?`<br>📝 ${clsObj.content}`:''}
-        <br>📸 사진 ${photoCount}장 · 제출 ${toKST(s.submitted_at)}
+        <br>📸 사진 ${photos.length}장 · 제출 ${toKST(s.submitted_at)}
         ${s.submit_memo?`<br>💬 메모: ${s.submit_memo}`:''}
-      </div>${extraHtml}</div>`;
+      </div>${thumbsHtml}${extraHtml}</div>`;
   }).join('');
 }
 
@@ -473,6 +487,32 @@ async function submitParentExtension() {
   alert('✅ 연장 신청이 선생님께 전달되었습니다!');
 }
 
+// ── 라이트박스
+let _plbImgs=[], _plbIdx=0;
+function openParentLb(imgs, idx) {
+  _plbImgs=imgs; _plbIdx=idx;
+  const lb = document.getElementById('parentLightbox');
+  lb.style.display='flex';
+  document.getElementById('parentLbImg').src = imgs[idx];
+  document.getElementById('parentLbCount').textContent = imgs.length>1 ? `${idx+1} / ${imgs.length}` : '';
+  document.getElementById('parentLbPrev').style.display = imgs.length>1?'block':'none';
+  document.getElementById('parentLbNext').style.display = imgs.length>1?'block':'none';
+}
+function closeParentLb() { document.getElementById('parentLightbox').style.display='none'; }
+function parentLbNav(dir, e) {
+  e.stopPropagation();
+  _plbIdx = (_plbIdx+dir+_plbImgs.length) % _plbImgs.length;
+  document.getElementById('parentLbImg').src = _plbImgs[_plbIdx];
+  document.getElementById('parentLbCount').textContent = `${_plbIdx+1} / ${_plbImgs.length}`;
+}
+document.addEventListener('keydown', e=>{
+  if(document.getElementById('parentLightbox').style.display==='flex'){
+    if(e.key==='Escape') closeParentLb();
+    if(e.key==='ArrowLeft') parentLbNav(-1,e);
+    if(e.key==='ArrowRight') parentLbNav(1,e);
+  }
+});
+
 // ── 로딩
 function showLoading() { document.getElementById('loadingOverlay').classList.add('show'); }
 function hideLoading() { document.getElementById('loadingOverlay').classList.remove('show'); }
@@ -483,8 +523,8 @@ document.getElementById('loginName').addEventListener('keydown', e=>{ if(e.key==
 
 // ── 세션 복원
 (async () => {
-  const saved = sessionStorage.getItem('parentStudent');
-  if (saved) { try { _student=JSON.parse(saved); await initApp(); } catch(e) { sessionStorage.removeItem('parentStudent'); } }
+  const saved = localStorage.getItem('parentStudent');
+  if (saved) { try { _student=JSON.parse(saved); await initApp(); } catch(e) { localStorage.removeItem('parentStudent'); } }
 })();
 </script>
 </body>

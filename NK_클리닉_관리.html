@@ -543,9 +543,9 @@ body { font-family:'Malgun Gothic','Apple SD Gothic Neo',sans-serif; background:
           <thead>
             <tr style="background:#1e2d50;color:#fff;">
               <th style="padding:9px 14px;text-align:left;font-weight:700;">이름</th>
-              <th style="padding:9px 10px;text-align:center;font-weight:700;white-space:nowrap;">총점</th>
-              <th style="padding:9px 10px;text-align:center;font-weight:700;white-space:nowrap;">결근 벌점</th>
-              <th style="padding:9px 10px;text-align:center;font-weight:700;white-space:nowrap;">추가 상벌점</th>
+              <th onclick="setPtsSort('score')"  style="padding:9px 10px;text-align:center;font-weight:700;white-space:nowrap;cursor:pointer;user-select:none;" title="클릭하여 정렬">총점 <span id="pts-arr-score">▼</span></th>
+              <th onclick="setPtsSort('abs')"    style="padding:9px 10px;text-align:center;font-weight:700;white-space:nowrap;cursor:pointer;user-select:none;" title="클릭하여 정렬">결근 벌점 <span id="pts-arr-abs"></span></th>
+              <th onclick="setPtsSort('manual')" style="padding:9px 10px;text-align:center;font-weight:700;white-space:nowrap;cursor:pointer;user-select:none;" title="클릭하여 정렬">추가 상벌점 <span id="pts-arr-manual"></span></th>
               <th style="padding:9px 10px;text-align:left;font-weight:700;white-space:nowrap;">내역</th>
             </tr>
           </thead>
@@ -770,7 +770,7 @@ body { font-family:'Malgun Gothic','Apple SD Gothic Neo',sans-serif; background:
 <div class="modal-overlay" id="absent-add-modal">
   <div class="modal" style="max-width:420px;">
     <div class="modal-head">
-      <h2>결근 추가</h2>
+      <h2 id="am-modal-title">결근 추가</h2>
       <button class="modal-close" onclick="closeAbsentModal()">&times;</button>
     </div>
     <div class="modal-body" style="padding:22px 24px;display:flex;flex-direction:column;gap:16px;">
@@ -818,6 +818,7 @@ body { font-family:'Malgun Gothic','Apple SD Gothic Neo',sans-serif; background:
         <div><span style="color:#888;font-size:0.78rem;display:block;margin-bottom:2px;">나이</span><span id="sv-age" style="font-weight:600;">—</span></div>
         <div><span style="color:#888;font-size:0.78rem;display:block;margin-bottom:2px;">소속</span><span id="sv-kan" style="font-weight:600;">—</span></div>
         <div style="grid-column:1/-1;"><span style="color:#888;font-size:0.78rem;display:block;margin-bottom:2px;">학교 / 학과</span><span id="sv-school" style="font-weight:600;">—</span></div>
+        <div style="grid-column:1/-1;"><span style="color:#888;font-size:0.78rem;display:block;margin-bottom:2px;">전화번호</span><a id="sv-phone" style="font-weight:600;color:#1a3a6b;text-decoration:none;">—</a></div>
       </div>
       <div style="margin-bottom:14px;">
         <div style="color:#888;font-size:0.78rem;margin-bottom:6px;">근무 요일 · 교시</div>
@@ -851,6 +852,10 @@ body { font-family:'Malgun Gothic','Apple SD Gothic Neo',sans-serif; background:
             <option value="2관">2관</option>
             <option value="미배정">미배정</option>
           </select>
+        </div>
+        <div style="grid-column:1/-1;">
+          <label style="font-size:0.81rem;font-weight:700;color:#555;display:block;margin-bottom:4px;">전화번호</label>
+          <input id="sm-phone" type="tel" placeholder="예: 010-1234-5678" style="width:100%;padding:8px 11px;border:1.5px solid #dde3ed;border-radius:7px;font-size:0.9rem;font-family:inherit;outline:none;">
         </div>
       </div>
       <div style="margin-bottom:14px;">
@@ -1299,6 +1304,7 @@ async function syncStaffToSupabase() {
       name: s.name,
       age: s.age || '',
       school: s.school || '',
+      phone: s.phone || '',
       kan: s.kan || '미배정',
       schedule: s.schedule || [],
       notes: s.notes || '',
@@ -1321,6 +1327,7 @@ async function syncFromSupabase() {
       name: r.name,
       age: r.age || '',
       school: r.school || '',
+      phone: r.phone || '',
       kan: r.kan || '미배정',
       schedule: Array.isArray(r.schedule) ? r.schedule : [],
       notes: r.notes || '',
@@ -1410,7 +1417,7 @@ function smShowFooter(mode){
 
 function openAddStaff() {
   editingStaffId = null;
-  ['sm-name','sm-age','sm-school','sm-notes'].forEach(id=>{ document.getElementById(id).value=''; });
+  ['sm-name','sm-age','sm-school','sm-phone','sm-notes'].forEach(id=>{ document.getElementById(id).value=''; });
   document.getElementById('sm-kan').value = currentClinicTab!=='미배정' ? currentClinicTab : '4관';
   SC_DAYS.forEach(d=>SC_PERIODS.forEach(p=>{ const el=document.getElementById(`sc-${d}-${p}`); if(el)el.checked=false; }));
   document.getElementById('sm-view-panel').style.display='none';
@@ -1430,6 +1437,9 @@ function openEditStaff(id) {
   document.getElementById('sv-kan').textContent = s.kan||'—';
   document.getElementById('sv-school').textContent = s.school||'—';
   document.getElementById('sv-notes').textContent = s.notes||'—';
+  const ph=document.getElementById('sv-phone');
+  if(s.phone){ ph.textContent=s.phone; ph.href='tel:'+s.phone.replace(/[^0-9+]/g,''); }
+  else { ph.textContent='—'; ph.removeAttribute('href'); }
   // 스케줄 태그
   const schedEl=document.getElementById('sv-sched');
   const schedHtml=buildSchedTags(s.schedule);
@@ -1449,6 +1459,7 @@ function switchToEdit() {
   document.getElementById('sm-name').value = s.name;
   document.getElementById('sm-age').value = s.age||'';
   document.getElementById('sm-school').value = s.school||'';
+  document.getElementById('sm-phone').value = s.phone||'';
   document.getElementById('sm-kan').value = s.kan;
   document.getElementById('sm-notes').value = s.notes||'';
   SC_DAYS.forEach(d=>SC_PERIODS.forEach(p=>{
@@ -1478,6 +1489,7 @@ function saveStaff() {
   }));
   const data = { name, age:document.getElementById('sm-age').value.trim(),
     school:document.getElementById('sm-school').value.trim(),
+    phone:document.getElementById('sm-phone').value.trim(),
     kan:document.getElementById('sm-kan').value,
     notes:document.getElementById('sm-notes').value.trim(), schedule };
   if(editingStaffId){
@@ -1921,6 +1933,7 @@ const ABSENT_KEY='nk_absent_v1';
 let absentList=[];
 let absentYear=new Date().getFullYear();
 let absentMonth=new Date().getMonth()+1; // 1-based
+let editingAbsentId=null;
 
 function loadAbsentList(){ try{ absentList=JSON.parse(localStorage.getItem(ABSENT_KEY)||'[]'); }catch(e){ absentList=[]; } }
 function saveAbsentList(){ localStorage.setItem(ABSENT_KEY,JSON.stringify(absentList)); }
@@ -2056,7 +2069,10 @@ function renderAbsentPage(){
           <span style="font-weight:700;color:#1a3a6b;font-size:0.9rem;margin-left:7px;">${esc(r.ct||'?')}</span>
           ${sub?`<span style="font-size:0.78rem;color:#2a7a4b;margin-left:4px;">→ ${esc(sub)}</span>`:'<span style="font-size:0.75rem;color:#bbb;margin-left:4px;">대타 없음</span>'}
         </div>
-        <button onclick="absentDelete('${r.id}')" style="background:none;border:none;color:#ccc;font-size:0.95rem;cursor:pointer;flex-shrink:0;" title="삭제">✕</button>
+        <div style="display:flex;gap:4px;flex-shrink:0;">
+          <button onclick="editAbsentRow('${r.id}')" style="background:none;border:1px solid #c8d3e8;color:#5a7ab0;font-size:0.72rem;padding:2px 7px;border-radius:4px;cursor:pointer;" title="수정">수정</button>
+          <button onclick="absentDelete('${r.id}')" style="background:none;border:none;color:#ccc;font-size:0.95rem;cursor:pointer;" title="삭제">✕</button>
+        </div>
       </div>
     </div>`;
   }).join('');
@@ -2100,6 +2116,8 @@ function addAbsentRow(dateStr){
   const dl2=document.getElementById('am-sub-dl');
   const names=clinicStaff.map(s=>`<option value="${esc(s.name)}">`).join('');
   dl1.innerHTML=names; dl2.innerHTML=names;
+  editingAbsentId=null;
+  document.getElementById('am-modal-title').textContent='결근 추가';
   document.getElementById('am-ct').value='';
   document.getElementById('am-date').value=d;
   document.getElementById('am-hassub').checked=false;
@@ -2117,6 +2135,26 @@ function toggleAmSub(){
 
 function closeAbsentModal(){
   document.getElementById('absent-add-modal').classList.remove('show');
+  editingAbsentId=null;
+}
+
+function editAbsentRow(id){
+  loadAbsentList();
+  const r=absentList.find(x=>x.id===id); if(!r) return;
+  loadClinicStaff();
+  const dl1=document.getElementById('am-ct-dl');
+  const dl2=document.getElementById('am-sub-dl');
+  const names=clinicStaff.map(s=>`<option value="${esc(s.name)}">`).join('');
+  dl1.innerHTML=names; dl2.innerHTML=names;
+  document.getElementById('am-modal-title').textContent='결근 수정';
+  document.getElementById('am-ct').value=r.ct||'';
+  document.getElementById('am-date').value=r.date||'';
+  document.getElementById('am-hassub').checked=!!(r.hasSub);
+  document.getElementById('am-sub').value=r.sub||'';
+  document.getElementById('am-sub-row').style.display=r.hasSub?'block':'none';
+  editingAbsentId=id;
+  document.getElementById('absent-add-modal').classList.add('show');
+  setTimeout(()=>document.getElementById('am-ct').focus(),80);
 }
 
 function saveAbsentModal(){
@@ -2127,11 +2165,20 @@ function saveAbsentModal(){
   if(!ct){ toast('이름을 입력해주세요.'); return; }
   if(!date){ toast('날짜를 선택해주세요.'); return; }
   loadAbsentList();
-  absentList.push({id:'ab_'+Date.now(), ct, date, hasSub, sub});
-  saveAbsentList();
-  closeAbsentModal();
-  renderAbsentPage();
-  toast('결근이 추가되었습니다.');
+  if(editingAbsentId){
+    const idx=absentList.findIndex(x=>x.id===editingAbsentId);
+    if(idx>=0) absentList[idx]={...absentList[idx], ct, date, hasSub, sub};
+    saveAbsentList();
+    closeAbsentModal();
+    renderAbsentPage();
+    toast('결근이 수정되었습니다.');
+  } else {
+    absentList.push({id:'ab_'+Date.now(), ct, date, hasSub, sub});
+    saveAbsentList();
+    closeAbsentModal();
+    renderAbsentPage();
+    toast('결근이 추가되었습니다.');
+  }
 }
 
 function absentDelete(id){
@@ -2264,7 +2311,7 @@ function renderAccPage(){
     const barW=maxAbsent>0?Math.round(r.total/maxAbsent*100):0;
     // 월별 내역 태그 — 결근 / 대타 합산
     const allYms=new Set([...Object.keys(r.months)]);
-    const monthTags=[...allYms].sort().map(ym=>{
+    const monthTags=[...allYms].sort().reverse().map(ym=>{
       const [y,m]=ym.split('-');
       const mo=r.months[ym]||{absent:0,sub:0};
       const absPart=mo.absent?`<span style="color:#c0392b;">결근 ${mo.absent}</span>`:`<span style="color:#bbb;">결근 없음</span>`;
@@ -2294,7 +2341,8 @@ function renderAccPage(){
 /* ===== 상벌점 ===== */
 const POINTS_KEY='nk_points_v1';
 let pointsList=[];
-let ptsSort='score';
+let ptsSort='score';   // 'score' | 'abs' | 'manual' | 'name'
+let ptsSortDir=-1;     // -1 = 내림차순, 1 = 오름차순
 
 function loadPointsList(){ try{ pointsList=JSON.parse(localStorage.getItem(POINTS_KEY)||'[]'); }catch(e){ pointsList=[]; } }
 function savePointsList(){ localStorage.setItem(POINTS_KEY,JSON.stringify(pointsList)); }
@@ -2339,7 +2387,8 @@ function deletePointsEntry(id){
 }
 
 function setPtsSort(s){
-  ptsSort=s;
+  if(ptsSort===s) ptsSortDir*=-1; // 같은 열 → 방향 반전
+  else { ptsSort=s; ptsSortDir=-1; } // 새 열 → 기본 내림차순
   document.getElementById('pts-sort-score').className=s==='score'?'btn btn-save':'btn btn-reset';
   document.getElementById('pts-sort-name').className=s==='name'?'btn btn-save':'btn btn-reset';
   document.getElementById('pts-sort-score').style.cssText='padding:4px 14px;font-size:0.82rem;height:30px;';
@@ -2369,7 +2418,9 @@ function renderPointsPage(){
   let rows=Object.values(map);
   rows.forEach(r=>{ r.total=r.manualPts-r.absCnt; });
 
-  if(ptsSort==='score') rows.sort((a,b)=>b.total-a.total||a.name.localeCompare(b.name,'ko'));
+  if(ptsSort==='score')  rows.sort((a,b)=>(b.total-a.total)*ptsSortDir||a.name.localeCompare(b.name,'ko'));
+  else if(ptsSort==='abs')    rows.sort((a,b)=>(b.absCnt-a.absCnt)*ptsSortDir||a.name.localeCompare(b.name,'ko'));
+  else if(ptsSort==='manual') rows.sort((a,b)=>(b.manualPts-a.manualPts)*ptsSortDir||a.name.localeCompare(b.name,'ko'));
   else rows.sort((a,b)=>a.name.localeCompare(b.name,'ko'));
 
   // 통계
@@ -2385,6 +2436,12 @@ function renderPointsPage(){
     <div style="${ST}"><div style="font-size:0.98rem;font-weight:900;color:#c0392b;">${minRow?esc(minRow.name)+'&nbsp;<span style="font-size:0.82rem;">('+minRow.total+'점)</span>':'—'}</div><div style="font-size:0.78rem;color:#777;margin-top:2px;">최저점</div></div>`;
 
   const TD='padding:9px 10px;border-bottom:1px solid #edf0f7;vertical-align:middle;';
+  // 헤더 정렬 화살표 업데이트
+  ['score','abs','manual'].forEach(k=>{
+    const el=document.getElementById('pts-arr-'+k);
+    if(el) el.textContent=ptsSort===k?(ptsSortDir===-1?'▼':'▲'):'';
+  });
+
   document.getElementById('pts-tbody').innerHTML=rows.map((r,i)=>{
     const bg=i%2===0?'#fff':'#f8faff';
     const tc=r.total>0?'#2a7a4b':r.total<0?'#c0392b':'#888';

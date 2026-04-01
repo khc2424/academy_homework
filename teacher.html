@@ -519,7 +519,7 @@ async function loadPhotos() {
 // ---- UTILS ----
 const DAYS = ['일','월','화','수','목','금','토'];
 function fmtHdr(d) { if(!d) return ''; const dt=new Date(d+'T00:00:00'); return `${String(dt.getMonth()+1).padStart(2,'0')}월${String(dt.getDate()).padStart(2,'0')}일(${DAYS[dt.getDay()]})`; }
-function fmtDue(d) { if(!d) return ''; const dt=new Date(d+'T00:00:00'); return `${String(dt.getFullYear()).slice(2)}.${String(dt.getMonth()+1).padStart(2,'0')}.${String(dt.getDate()).padStart(2,'0')}.(${DAYS[dt.getDay()]})`; }
+function fmtDue(d) { if(!d) return ''; const dt=new Date(d+'T00:00:00'); return `${String(dt.getFullYear()).slice(2)}.${String(dt.getMonth()+1).padStart(2,'0')}.${String(dt.getDate()).padStart(2,'0')}(${DAYS[dt.getDay()]})`; }
 function hwCls(hw) { return (hw.homework_classes||[]).map(c=>c.class_name); }
 function subClass(s) { return {수학:'#e0e7ff|#3730a3',영어:'#dcfce7|#166534',국어:'#fce7f3|#9d174d',과학:'#fef3c7|#92400e',사회:'#f0fdf4|#15803d'}[s]||'#f3f4f6|#4b5563'; }
 function getSubRate(hwId) { const hw=_homeworks.find(h=>h.id===hwId); const cls=hw?hwCls(hw):[]; const rel=cls.length?_students.filter(s=>cls.includes(s.class)):_students; if(!rel.length) return 0; const sub=_submissions[hwId]||{}; return Math.round(rel.filter(s=>sub[s.id]?.submitted).length/rel.length*100); }
@@ -841,9 +841,10 @@ function addClsPanel(cls, preData=null, preDue=null, preTime=null) {
   const dueTime = preTime || '23:59';
   const pc = preData?.problem_count || '';
   const contentStr = preData?.content || '';
-  const pageMatch = contentStr.match(/^(\d+)\s*~\s*(\d+)\s*(번|p)/);
+  const pageMatch = contentStr.match(/^(\d+)\s*~\s*(\d+)\s*(번|p)(?:\s*\((.+)\))?/);
   const startP = pageMatch ? pageMatch[1] : '';
   const endP   = pageMatch ? pageMatch[2] : '';
+  const notesStr = pageMatch ? (pageMatch[4]||'') : contentStr;
   const div = document.createElement('div');
   div.className='class-row'; div.id=panelId; div.dataset.cls=cls;
   div.innerHTML=`
@@ -870,7 +871,7 @@ function addClsPanel(cls, preData=null, preDue=null, preTime=null) {
       <div class="col-2"><input type="number" class="fc cp-pe" placeholder="끝" min="0" value="${endP}" style="text-align:center;padding:6px 4px"></div>
       <div class="col-auto" style="color:#666">p</div>
     </div>
-    <div><textarea class="fc cp-c" placeholder="상세 내용 (예: 36-70번 풀기, 오답노트 작성 등)" rows="2" style="resize:vertical">${contentStr}</textarea></div>`;
+    <div><textarea class="fc cp-c" placeholder="상세 내용 (예: 오답노트 작성 등)" rows="2" style="resize:vertical">${notesStr}</textarea></div>`;
   document.getElementById('clsPanels').appendChild(div);
   _updateClsLbl(cls);
 }
@@ -912,10 +913,16 @@ function loadTemplateForCls(panelId) {
   if(t.textbook) panel.querySelector('.cp-t').value = t.textbook;
   if(t.problem_count) panel.querySelector('.cp-p').value = t.problem_count;
   if(t.content) {
-    panel.querySelector('.cp-c').value = t.content;
-    const pm = t.content.match(/^(\d+)\s*~\s*(\d+)\s*번/);
-    if(pm) { panel.querySelector('.cp-ps').value = pm[1]; panel.querySelector('.cp-pe').value = pm[2]; }
-    else { panel.querySelector('.cp-ps').value = ''; panel.querySelector('.cp-pe').value = ''; }
+    const pm = t.content.match(/^(\d+)\s*~\s*(\d+)\s*(번|p)(?:\s*\((.+)\))?/);
+    if(pm) {
+      panel.querySelector('.cp-ps').value = pm[1];
+      panel.querySelector('.cp-pe').value = pm[2];
+      panel.querySelector('.cp-c').value = pm[4]||'';
+    } else {
+      panel.querySelector('.cp-ps').value = '';
+      panel.querySelector('.cp-pe').value = '';
+      panel.querySelector('.cp-c').value = t.content;
+    }
   }
   if(t.due_time) panel.querySelector('.cp-time').value = t.due_time;
   toast(`${cls}반 고정 숙제를 불러왔습니다`);
@@ -979,8 +986,9 @@ async function saveHW() {
     const ps = panel.querySelector('.cp-ps')?.value.trim()||'';
     const pe = panel.querySelector('.cp-pe')?.value.trim()||'';
     const pc = panel.querySelector('.cp-p')?.value.trim()||'';
-    let ct = panel.querySelector('.cp-c')?.value.trim()||'';
-    if(!ct && ps && pe) ct = `${ps}~${pe}p`;
+    const notes = (panel.querySelector('.cp-c')?.value.trim()||'').replace(/^"|"$/g,'');
+    let ct = notes;
+    if(ps && pe) ct = notes ? `${ps}~${pe}p (${notes})` : `${ps}~${pe}p`;
     return { cls, dueDate, dueTime, textbook: panel.querySelector('.cp-t')?.value.trim()||'', problem_count: pc||null, content: ct };
   }
   try {
@@ -1093,12 +1101,15 @@ function generateCombinedMsg(className, hwList) {
   const first=hwList[0];
   const header=`[${className}반_${fmtHdr(first.hw.assign_date)} 숙제 안내]`;
   const blocks=hwList.map(({hw,clsObj,students})=>{
-    const tb=clsObj.textbook||''; const pc=clsObj.problem_count; const ct=(clsObj.content||'').replace(/(\d+)\s*~\s*(\d+)\s*번/,'$1~$2p');
+    const tb=clsObj.textbook||''; const pc=clsObj.problem_count;
+    const rawCt=clsObj.content||'';
+    const pm2=rawCt.match(/^(\d+)\s*~\s*(\d+)\s*(번|p)(?:\s*\((.+)\))?/);
+    const ct=pm2?`${pm2[1]}-${pm2[2]}P${pm2[4]?' ('+pm2[4]+')':''}`:rawCt;
     const prob=pc?` (${pc}문제)`:'';
-    const time=hw.due_time||'12:00'; const hour=parseInt(time.split(':')[0]); const minute=parseInt((time.split(':')[1])||'0');
-    const timeStr=(hour===23)? '밤 12시' : hour>=12?`밤${hour===12?12:hour-12}시`:`오전${hour}시`;
-    const stuLine=(students&&students.length)?`\n■ ${students.map(s=>s.name).join(', ')}`:'';
-    return `▶ 교재 : ${tb}${prob}\n⏭ ${ct}\n★ 기한 : ${fmtDue(hw.due_date)} ${timeStr}${stuLine}`;
+    const time=hw.due_time||'12:00'; const hour=parseInt(time.split(':')[0]);
+    const timeStr=(hour===23)?'밤12시':hour>=12?`밤${hour===12?12:hour-12}시`:`오전${hour}시`;
+    const stuSection=(students&&students.length)?`\n■ 학생명단\n${students.map(s=>s.name).join('\n')}`:'';
+    return `▶ 교재 : ${tb}${prob}\n⏭ ${ct}\n★ 기한 : ${fmtDue(hw.due_date)} ${timeStr}${stuSection}`;
   }).join('\n\n');
   const footer=`\n\n———————학생여러분께———————\n✓ 교재 노트풀이 하시기 바랍니다.\n✓ 오답노트 작성시 대충 하지 마시고 모르는 문제를 제대로 알아갈 수 있게 작성하시기 바랍니다.\n✓ 숙제 제출시 채점까지 완료해서 제출하시기 바랍니다.\n———————학부모님께————————\n✓ 학습 독려했음에도 숙제를 제대로 하지 않는 학생은 저에게 연락 부탁드립니다.\n✓ 숙제 연장은 학부모님께서만 가능합니다.\n✓ 숙제 연장은 담당선생님께 해주세요.`;
   return `${header}\n${blocks}${footer}`;

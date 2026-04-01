@@ -257,11 +257,11 @@ function checkPw() {
     <div class="page-title">💬 카카오톡 메시지 생성</div>
     <div class="page-sub">숙제를 여러 개 선택하면 한 번에 합쳐서 메시지가 생성됩니다</div>
     <div class="card-c mb-4">
-      <div class="card-h d-flex justify-content-between align-items-center">
-        <span>📚 숙제 선택 (체크하면 바로 메시지 생성)</span>
-        <select class="fc" style="width:auto;font-size:13px;padding:5px 10px" id="msgClsFilter" onchange="renderMsgHWList()">
-          <option value="">전체 반</option>
-        </select>
+      <div class="card-h">
+        <div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
+          <span>📚 숙제 선택 (체크하면 바로 메시지 생성)</span>
+          <div id="msgClsFilterWrap" style="display:flex;flex-wrap:wrap;gap:6px"></div>
+        </div>
       </div>
       <div id="msgHWList" style="padding:8px 20px;max-height:210px;overflow-y:auto;border-top:1px solid var(--gray-200)">
         <div class="empty-st" style="padding:16px"><span>숙제를 불러오는 중...</span></div>
@@ -822,21 +822,24 @@ function addClsCheckbox(cls) {
   wrap.appendChild(lbl);
 }
 
-function toggleClsPanel(cls, checked, preData=null, preDue=null, preTime=null) {
+let _panelIdx = 0;
+
+function _updateClsLbl(cls) {
   const sid = _safeCls(cls);
-  const panelId = `cpanel_${sid}`;
   const lbl = document.getElementById(`clslbl_${sid}`);
-  if (!checked) {
-    document.getElementById(panelId)?.remove();
-    if(lbl){lbl.style.background='#f3f4f6';lbl.style.borderColor='#e5e7eb';lbl.style.color='';}
-    return;
-  }
-  if (document.getElementById(panelId)) return;
+  if(!lbl) return;
+  const hasPanels = document.querySelectorAll(`#clsPanels .class-row[data-cls="${cls}"]`).length > 0;
+  if(hasPanels){lbl.style.background='var(--primary-light)';lbl.style.borderColor='var(--primary)';lbl.style.color='var(--primary)';}
+  else{lbl.style.background='#f3f4f6';lbl.style.borderColor='#e5e7eb';lbl.style.color='';}
+}
+
+function addClsPanel(cls, preData=null, preDue=null, preTime=null) {
+  const idx = _panelIdx++;
+  const panelId = `cpanel_${idx}`;
   const def = getDefaultDue();
   const dueDate = preDue || def.date;
   const dueTime = preTime || '23:59';
   const pc = preData?.problem_count || '';
-  // 페이지 범위는 content에서 파싱 (예: "36~70번 풀기" → 36, 70)
   const contentStr = preData?.content || '';
   const pageMatch = contentStr.match(/^(\d+)\s*~\s*(\d+)\s*번/);
   const startP = pageMatch ? pageMatch[1] : '';
@@ -846,11 +849,15 @@ function toggleClsPanel(cls, checked, preData=null, preDue=null, preTime=null) {
   div.innerHTML=`
     <div class="d-flex justify-content-between align-items-center mb-2">
       <span style="font-size:13px;font-weight:700;color:var(--primary)">🏫 ${cls}반</span>
-      <button type="button" class="btn-o" style="font-size:11px;padding:3px 10px;background:#fffde7;border-color:#FEE500" onclick="loadTemplateForCls('${cls}')">📂 고정 숙제 불러오기</button>
+      <div class="d-flex gap-1">
+        <button type="button" class="btn-o" style="font-size:11px;padding:3px 10px;background:#fffde7;border-color:#FEE500" onclick="loadTemplateForCls('${panelId}')">📂 고정숙제</button>
+        <button type="button" class="btn-o" style="font-size:11px;padding:3px 10px;background:#f0fdf4;border-color:#86efac;color:#166534" onclick="addClsPanel('${cls}')">➕ 날짜추가</button>
+        <button type="button" class="btn-o" style="font-size:11px;padding:3px 8px;color:var(--danger)" onclick="removeClsPanel('${panelId}')">✕</button>
+      </div>
     </div>
     <div class="row g-2 mb-2">
-      <div class="col-5"><label style="font-size:12px;color:#666;display:block;margin-bottom:3px">제출 기한 *</label><input type="date" class="fc cp-due" id="cpdue_${sid}" value="${dueDate}"></div>
-      <div class="col-3"><label style="font-size:12px;color:#666;display:block;margin-bottom:3px">시간</label><input type="time" class="fc cp-time" id="cptime_${sid}" value="${dueTime}"></div>
+      <div class="col-5"><label style="font-size:12px;color:#666;display:block;margin-bottom:3px">제출 기한 *</label><input type="date" class="fc cp-due" value="${dueDate}"></div>
+      <div class="col-3"><label style="font-size:12px;color:#666;display:block;margin-bottom:3px">시간</label><input type="time" class="fc cp-time" value="${dueTime}"></div>
     </div>
     <div class="row g-2 align-items-center mb-1">
       <div class="col-5"><input type="text" class="fc cp-t" placeholder="교재명" value="${preData?.textbook||''}"></div>
@@ -863,31 +870,54 @@ function toggleClsPanel(cls, checked, preData=null, preDue=null, preTime=null) {
       <div class="col-2"><input type="number" class="fc cp-pe" placeholder="끝" min="0" value="${endP}" style="text-align:center;padding:6px 4px"></div>
       <div class="col-auto" style="color:#666">p</div>
     </div>
-    <div><textarea class="fc cp-c" placeholder="상세 내용 (예: 36-70번 풀기, 오답노트 작성 등)" rows="2" style="resize:vertical">${preData?.content||''}</textarea></div>`;
+    <div><textarea class="fc cp-c" placeholder="상세 내용 (예: 36-70번 풀기, 오답노트 작성 등)" rows="2" style="resize:vertical">${contentStr}</textarea></div>`;
   document.getElementById('clsPanels').appendChild(div);
-  if(lbl){lbl.style.background='var(--primary-light)';lbl.style.borderColor='var(--primary)';lbl.style.color='var(--primary)';}
+  _updateClsLbl(cls);
 }
 
-function loadTemplateForCls(cls) {
-  const sid = _safeCls(cls);
-  const dueInput = document.getElementById(`cpdue_${sid}`);
+function toggleClsPanel(cls, checked, preData=null, preDue=null, preTime=null) {
+  if (!checked) {
+    document.querySelectorAll(`#clsPanels .class-row[data-cls="${cls}"]`).forEach(p=>p.remove());
+    _updateClsLbl(cls);
+    return;
+  }
+  if (document.querySelectorAll(`#clsPanels .class-row[data-cls="${cls}"]`).length === 0) {
+    addClsPanel(cls, preData, preDue, preTime);
+  }
+}
+
+function removeClsPanel(panelId) {
+  const panel = document.getElementById(panelId);
+  if(!panel) return;
+  const cls = panel.dataset.cls;
+  panel.remove();
+  // 패널이 모두 없어지면 체크박스도 해제
+  if(!document.querySelectorAll(`#clsPanels .class-row[data-cls="${cls}"]`).length) {
+    const cb = document.getElementById('clscb_'+_safeCls(cls));
+    if(cb) cb.checked = false;
+  }
+  _updateClsLbl(cls);
+}
+
+function loadTemplateForCls(panelId) {
+  const panel = document.getElementById(panelId);
+  if(!panel) return;
+  const cls = panel.dataset.cls;
+  const dueInput = panel.querySelector('.cp-due');
   const due = dueInput?.value;
   if (!due) { toast('먼저 제출 기한을 선택하세요', 'info'); return; }
   const dayNum = new Date(due+'T00:00:00').getDay();
   const t = _templates[`${cls}_${dayNum}`];
   if (!t || (!t.textbook && !t.content)) { toast(`${cls}반의 해당 요일 고정 숙제가 없습니다`, 'info'); return; }
-  const panel = document.getElementById(`cpanel_${sid}`);
-  if (!panel) return;
   if(t.textbook) panel.querySelector('.cp-t').value = t.textbook;
   if(t.problem_count) panel.querySelector('.cp-p').value = t.problem_count;
   if(t.content) {
     panel.querySelector('.cp-c').value = t.content;
-    // content에서 페이지 범위 자동 파싱 (예: "36~70번 풀기")
     const pm = t.content.match(/^(\d+)\s*~\s*(\d+)\s*번/);
     if(pm) { panel.querySelector('.cp-ps').value = pm[1]; panel.querySelector('.cp-pe').value = pm[2]; }
     else { panel.querySelector('.cp-ps').value = ''; panel.querySelector('.cp-pe').value = ''; }
   }
-  if(t.due_time) document.getElementById(`cptime_${sid}`).value = t.due_time;
+  if(t.due_time) panel.querySelector('.cp-time').value = t.due_time;
   toast(`${cls}반 고정 숙제를 불러왔습니다`);
 }
 
@@ -910,6 +940,7 @@ function openHWModal(id) {
   document.getElementById('hwEditId').value = id||'';
   document.getElementById('hwModalTitle').textContent = id?'숙제 수정':'숙제 등록';
   // 초기화
+  _panelIdx = 0;
   document.getElementById('clsCheckWrap').innerHTML = '';
   document.getElementById('clsPanels').innerHTML = '';
   const today = new Date().toISOString().slice(0,10);
@@ -943,9 +974,8 @@ async function saveHW() {
   const editId = document.getElementById('hwEditId').value;
   function getPanelData(panel) {
     const cls = panel.dataset.cls;
-    const sid = _safeCls(cls);
-    const dueDate = document.getElementById('cpdue_'+sid)?.value || '';
-    const dueTime = document.getElementById('cptime_'+sid)?.value || '23:59';
+    const dueDate = panel.querySelector('.cp-due')?.value || '';
+    const dueTime = panel.querySelector('.cp-time')?.value || '23:59';
     const ps = panel.querySelector('.cp-ps')?.value.trim()||'';
     const pe = panel.querySelector('.cp-pe')?.value.trim()||'';
     const pc = panel.querySelector('.cp-p')?.value.trim()||'';
@@ -1024,18 +1054,20 @@ function goMsg(hwId){
 
 function renderMsgHWList() {
   const el = document.getElementById('msgHWList');
-  // 반 필터 옵션 초기화 (한 번만)
-  const clsSel = document.getElementById('msgClsFilter');
-  if (clsSel && clsSel.options.length <= 1) {
+  // 반 체크박스 초기화 (한 번만)
+  const wrap = document.getElementById('msgClsFilterWrap');
+  if (wrap && wrap.childElementCount === 0) {
     getClasses().forEach(cls => {
-      const opt = document.createElement('option');
-      opt.value = cls; opt.textContent = cls + '반';
-      clsSel.appendChild(opt);
+      const lbl = document.createElement('label');
+      lbl.style.cssText = 'display:flex;align-items:center;gap:5px;background:#f3f4f6;border:1.5px solid #e5e7eb;border-radius:16px;padding:4px 12px;cursor:pointer;font-size:12px;font-weight:600;user-select:none;transition:all .15s';
+      lbl.innerHTML = `<input type="checkbox" value="${cls}" checked style="width:13px;height:13px;cursor:pointer" onchange="this.closest('label').style.background=this.checked?'var(--primary-light)':'#f3f4f6';this.closest('label').style.borderColor=this.checked?'var(--primary)':'#e5e7eb';this.closest('label').style.color=this.checked?'var(--primary)':'';renderMsgHWList()"> ${cls}반`;
+      lbl.style.background='var(--primary-light)';lbl.style.borderColor='var(--primary)';lbl.style.color='var(--primary)';
+      wrap.appendChild(lbl);
     });
   }
-  const clsFilter = clsSel?.value || '';
-  const filtered = (clsFilter
-    ? _homeworks.filter(h => hwCls(h).length === 0 || hwCls(h).includes(clsFilter))
+  const checkedCls = [...(document.querySelectorAll('#msgClsFilterWrap input:checked')||[])].map(cb=>cb.value);
+  const filtered = (checkedCls.length
+    ? _homeworks.filter(h => hwCls(h).length === 0 || hwCls(h).some(c => checkedCls.includes(c)))
     : _homeworks.slice()
   ).sort((a,b) => ((a.due_date||'')+(a.due_time||'')).localeCompare((b.due_date||'')+(b.due_time||'')));
   if (!filtered.length) {
@@ -1058,7 +1090,7 @@ function generateCombinedMsg(className, hwList) {
     const tb=clsObj.textbook||''; const pc=clsObj.problem_count; const ct=clsObj.content||'';
     const prob=pc?` (${pc}문제)`:'';
     const time=hw.due_time||'12:00'; const hour=parseInt(time.split(':')[0]); const minute=parseInt((time.split(':')[1])||'0');
-    const timeStr=(hour===23)? '자정(12시)' : hour>=12?`밤${hour===12?12:hour-12}시`:`오전${hour}시`;
+    const timeStr=(hour===23)? '밤 12시' : hour>=12?`밤${hour===12?12:hour-12}시`:`오전${hour}시`;
     const stuLine=(students&&students.length)?`\n■ ${students.map(s=>s.name).join(', ')}`:'';
     return `▶ 교재 : ${tb}${prob}\n⏭ ${ct}\n★ 기한 : ${fmtDue(hw.due_date)} ${timeStr}${stuLine}`;
   }).join('\n\n');

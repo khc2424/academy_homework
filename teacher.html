@@ -841,7 +841,7 @@ function addClsPanel(cls, preData=null, preDue=null, preTime=null) {
   const dueTime = preTime || '23:59';
   const pc = preData?.problem_count || '';
   const contentStr = preData?.content || '';
-  const pageMatch = contentStr.match(/^(\d+)\s*~\s*(\d+)\s*번/);
+  const pageMatch = contentStr.match(/^(\d+)\s*~\s*(\d+)\s*(번|p)/);
   const startP = pageMatch ? pageMatch[1] : '';
   const endP   = pageMatch ? pageMatch[2] : '';
   const div = document.createElement('div');
@@ -980,7 +980,7 @@ async function saveHW() {
     const pe = panel.querySelector('.cp-pe')?.value.trim()||'';
     const pc = panel.querySelector('.cp-p')?.value.trim()||'';
     let ct = panel.querySelector('.cp-c')?.value.trim()||'';
-    if(!ct && ps && pe) ct = `${ps}~${pe}번`;
+    if(!ct && ps && pe) ct = `${ps}~${pe}p`;
     return { cls, dueDate, dueTime, textbook: panel.querySelector('.cp-t')?.value.trim()||'', problem_count: pc||null, content: ct };
   }
   try {
@@ -990,8 +990,11 @@ async function saveHW() {
       if(!d.dueDate) { toast(`${d.cls}반 제출 기한을 입력해주세요`,'danger'); return; }
       await db.from('homeworks').update({subject, assign_date:assignDate, due_date:d.dueDate, due_time:d.dueTime}).eq('id',editId);
       await db.from('homework_classes').delete().eq('homework_id',editId);
-      const rows = panels.map(p => { const pd=getPanelData(p); return {class_name:pd.cls,textbook:pd.textbook,problem_count:pd.problem_count,content:pd.content,homework_id:editId}; });
-      await db.from('homework_classes').insert(rows);
+      for(const p of panels) {
+        const pd = getPanelData(p);
+        const {error:ce} = await db.from('homework_classes').insert({class_name:pd.cls,textbook:pd.textbook,problem_count:pd.problem_count,content:pd.content,homework_id:editId});
+        if(ce) throw ce;
+      }
       toast('숙제가 수정되었습니다');
     } else {
       // 신규: 반별로 숙제 각각 등록
@@ -1030,7 +1033,7 @@ function renderHomework() {
     const sc=subClass(h.subject).split('|');
     return `<div class="col-md-6 col-lg-4"><div style="background:#fff;border:1px solid var(--gray-200);border-radius:12px;padding:16px">
       <div class="d-flex justify-content-between mb-2"><span style="background:${sc[0]};color:${sc[1]};padding:2px 9px;border-radius:12px;font-size:12px;font-weight:600">${h.subject}</span>${getDueBadge(h.due_date)}</div>
-      ${(h.homework_classes||[]).map(c=>`<div style="font-size:12px;color:#555;margin-bottom:3px">📖 ${c.class_name}: ${c.textbook||''}${c.problem_count?` ${c.problem_count}p`:''} — ${c.content||''}</div>`).join('')}
+      ${(h.homework_classes||[]).map(c=>{const ctd=(c.content||'').replace(/(\d+)\s*~\s*(\d+)\s*번/,'$1~$2p');return`<div style="font-size:12px;color:#555;margin-bottom:3px">📖 ${c.class_name}: ${c.textbook||''}${c.problem_count?` ${c.problem_count}문제`:''}${ctd?` — ${ctd}`:''}</div>`;}).join('')}
       <div style="font-size:12px;color:#aaa;margin:8px 0">📅 공지: ${h.assign_date} | 기한: ${h.due_date}</div>
       <div class="d-flex justify-content-between mb-1" style="font-size:12px"><span>제출 현황</span><span style="font-weight:600">${rate}%</span></div>
       <div style="background:var(--gray-200);border-radius:99px;height:8px;overflow:hidden;margin-bottom:10px"><div style="height:100%;border-radius:99px;background:${rate>=80?'var(--success)':rate>=50?'var(--warning)':'var(--danger)'};width:${rate}%"></div></div>
@@ -1090,7 +1093,7 @@ function generateCombinedMsg(className, hwList) {
   const first=hwList[0];
   const header=`[${className}반_${fmtHdr(first.hw.assign_date)} 숙제 안내]`;
   const blocks=hwList.map(({hw,clsObj,students})=>{
-    const tb=clsObj.textbook||''; const pc=clsObj.problem_count; const ct=clsObj.content||'';
+    const tb=clsObj.textbook||''; const pc=clsObj.problem_count; const ct=(clsObj.content||'').replace(/(\d+)\s*~\s*(\d+)\s*번/,'$1~$2p');
     const prob=pc?` (${pc}문제)`:'';
     const time=hw.due_time||'12:00'; const hour=parseInt(time.split(':')[0]); const minute=parseInt((time.split(':')[1])||'0');
     const timeStr=(hour===23)? '밤 12시' : hour>=12?`밤${hour===12?12:hour-12}시`:`오전${hour}시`;

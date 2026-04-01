@@ -200,6 +200,7 @@ function checkPw() {
       <select class="fc" style="width:auto" id="photoFilterClass" onchange="renderPhotos()"><option value="">전체 반</option></select>
       <select class="fc" style="width:auto" id="photoFilterReview" onchange="renderPhotos()">
         <option value="">전체</option><option value="false">미확인</option><option value="true">확인 완료</option>
+        <option value="rejected">❌ 반려</option><option value="resubmitted">🔄 재제출</option>
       </select>
       <button class="btn-o" style="margin-left:auto" onclick="loadPhotos()">🔄 새로고침</button>
     </div>
@@ -589,11 +590,15 @@ function renderPhotos() {
   const hwFilter = document.getElementById('photoFilterHW').value;
   const clsFilter = document.getElementById('photoFilterClass').value;
   const revFilter = document.getElementById('photoFilterReview').value;
-  let list = _photoSubs.filter(s =>
-    (!hwFilter || s.homework_id===hwFilter) &&
-    (!clsFilter || s.students?.class===clsFilter) &&
-    (revFilter===''||String(s.reviewed)===revFilter)
-  );
+  let list = _photoSubs.filter(s => {
+    if (hwFilter && s.homework_id!==hwFilter) return false;
+    if (clsFilter && s.students?.class!==clsFilter) return false;
+    if (revFilter==='rejected') return s.rejection_status==='rejected';
+    if (revFilter==='resubmitted') return s.rejection_status==='resubmitted';
+    if (revFilter==='false') return !s.reviewed && s.rejection_status!=='rejected';
+    if (revFilter==='true') return s.reviewed && !s.rejection_status;
+    return true;
+  });
   const el = document.getElementById('photoList');
   if (!list.length) { el.innerHTML='<div class="empty-st"><span class="empty-ic">📸</span>제출된 사진이 없습니다</div>'; return; }
   el.innerHTML = `<div class="card-c"><table class="table tbl mb-0">
@@ -614,23 +619,60 @@ function renderPhotos() {
           </div>
         </td>
         <td style="font-size:12px;color:#666;max-width:150px">${s.submit_memo||'-'}</td>
-        <td>
-          ${s.reviewed
-            ? '<span class="reviewed-badge">✓ 확인 완료</span>'
-            : `<button class="btn-o review-btn" onclick="markReviewed('${s.id}')">확인</button>`
-          }
-        </td>
+        <td>${getStatusCell(s)}</td>
       </tr>`;
     }).join('') + `</tbody></table></div>`;
 }
 
-async function markReviewed(subId) {
-  await db.from('submissions').update({ reviewed: true }).eq('id', subId);
+function getStatusCell(s) {
+  if (s.rejection_status === 'rejected') {
+    return `<div>
+      <span class="bdg-f">❌ 반려</span>
+      <div style="font-size:11px;color:#888;margin-top:4px;max-width:140px">${s.rejection_reason||'사유 없음'}</div>
+    </div>`;
+  }
+  if (s.rejection_status === 'resubmitted') {
+    return `<div>
+      <span style="background:#ede9fe;color:#5b21b6;padding:2px 8px;border-radius:99px;font-size:11px;font-weight:700">🔄 재제출</span>
+      <div class="d-flex gap-1 mt-1">
+        <button class="btn-o review-btn" onclick="markReviewed('${s.id}',true)">✅ 확인</button>
+        <button class="btn-o review-btn" style="color:#ef4444;border-color:#fca5a5" onclick="rejectSubmission('${s.id}')">❌ 반려</button>
+      </div>
+    </div>`;
+  }
+  if (s.reviewed) return '<span class="reviewed-badge">✓ 확인 완료</span>';
+  return `<div class="d-flex gap-1">
+    <button class="btn-o review-btn" onclick="markReviewed('${s.id}')">✅ 확인</button>
+    <button class="btn-o review-btn" style="color:#ef4444;border-color:#fca5a5" onclick="rejectSubmission('${s.id}')">❌ 반려</button>
+  </div>`;
+}
+
+async function rejectSubmission(subId) {
+  const reason = prompt('반려 사유를 입력하세요 (생략 가능):');
+  if (reason === null) return; // 취소
+  const update = {
+    reviewed: true,
+    rejection_status: 'rejected',
+    rejected_at: new Date().toISOString(),
+    rejection_reason: reason || ''
+  };
+  await db.from('submissions').update(update).eq('id', subId);
   const idx = _photoSubs.findIndex(s=>s.id===subId);
-  if (idx>=0) _photoSubs[idx].reviewed = true;
+  if (idx>=0) Object.assign(_photoSubs[idx], update);
+  renderPhotos();
+  toast('❌ 반려 처리되었습니다');
+}
+
+async function markReviewed(subId, clearRejection=false) {
+  const update = clearRejection
+    ? { reviewed: true, rejection_status: null, rejected_at: null, rejection_reason: null }
+    : { reviewed: true };
+  await db.from('submissions').update(update).eq('id', subId);
+  const idx = _photoSubs.findIndex(s=>s.id===subId);
+  if (idx>=0) Object.assign(_photoSubs[idx], update);
   renderPhotos();
   loadPhotos(); // refresh badge
-  toast('확인 완료로 변경되었습니다');
+  toast('✅ 확인 완료로 변경되었습니다');
 }
 
 // ---- LIGHTBOX ----

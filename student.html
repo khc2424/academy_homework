@@ -184,6 +184,13 @@
     📸 숙제 사진을 찍어서 제출해 주세요. 채점 완료 후 제출해야 합니다!
   </div>
 
+  <!-- 반려 알림 배너 -->
+  <div id="rejectionBanner" style="display:none;background:#fee2e2;border:1.5px solid #fca5a5;border-radius:12px;padding:14px 16px;margin-bottom:16px">
+    <div style="font-weight:700;color:#991b1b;font-size:14px;margin-bottom:6px">❌ 반려된 숙제가 있어요!</div>
+    <div id="rejectionList" style="font-size:13px;color:#7f1d1d;line-height:1.8"></div>
+    <div style="font-size:12px;color:#b91c1c;margin-top:6px">해당 숙제를 다시 선택해서 재제출해 주세요.</div>
+  </div>
+
   <!-- Step 1: 학생 정보 -->
   <div class="card">
     <div class="card-title"><span class="step-badge">1</span> 학생 정보</div>
@@ -360,6 +367,7 @@ document.getElementById('classSelect').addEventListener('change', async function
   const nameSel = document.getElementById('nameSelect');
   nameSel.innerHTML = '<option value="">이름을 선택하세요</option>';
   nameSel.disabled = !cls;
+  document.getElementById('rejectionBanner').style.display = 'none';
   if (!cls) return;
   const { data } = await db.from('students').select('*').eq('class', cls).order('name');
   if (data) {
@@ -370,6 +378,13 @@ document.getElementById('classSelect').addEventListener('change', async function
     });
   }
   updateHomeworkSelect(cls);
+});
+
+// 이름 선택 시 반려 내역 로드
+document.getElementById('nameSelect').addEventListener('change', function() {
+  const stuId = this.value;
+  if (stuId) loadStudentSubmissions(stuId);
+  else document.getElementById('rejectionBanner').style.display = 'none';
 });
 
 function updateHomeworkSelect(cls) {
@@ -399,14 +414,60 @@ document.getElementById('homeworkSelect').addEventListener('change', function() 
   const clsObj = (hw.homework_classes||[]).find(c=>c.class_name===cls) || (hw.homework_classes||[])[0];
   if (clsObj) {
     detail.style.display = 'block';
+    const sub = window._mySubmissions ? window._mySubmissions[hw.id] : null;
+    let rejHtml = '';
+    if (sub && sub.rejection_status === 'rejected') {
+      rejHtml = `<div style="background:#fee2e2;border-radius:8px;padding:8px 10px;margin-top:8px;color:#991b1b;font-size:12px;font-weight:600">
+        ❌ 반려됨 — 사유: ${sub.rejection_reason||'사유 없음'}<br>
+        <span style="font-weight:400">재제출하면 선생님께 다시 전달됩니다.</span>
+      </div>`;
+    } else if (sub && sub.rejection_status === 'resubmitted') {
+      rejHtml = `<div style="background:#ede9fe;border-radius:8px;padding:8px 10px;margin-top:8px;color:#5b21b6;font-size:12px;font-weight:600">
+        🔄 재제출 완료 — 선생님 확인 대기 중
+      </div>`;
+    } else if (sub && sub.submitted) {
+      rejHtml = `<div style="background:#dcfce7;border-radius:8px;padding:8px 10px;margin-top:8px;color:#166534;font-size:12px;font-weight:600">
+        ✅ 이미 제출됨
+      </div>`;
+    }
     detail.innerHTML = `
       📖 교재: <strong>${clsObj.textbook||'-'}</strong>${clsObj.problem_count?` (${clsObj.problem_count}문제)`:''}
       <br>📝 내용: <strong>${clsObj.content||'-'}</strong>
-      <br>📅 기한: <strong>${hw.due_date}</strong>`;
+      <br>📅 기한: <strong>${hw.due_date}</strong>${rejHtml}`;
   } else {
     detail.style.display = 'none';
   }
 });
+
+// ============================================================
+//  반려 내역 조회
+// ============================================================
+async function loadStudentSubmissions(stuId) {
+  window._mySubmissions = {};
+  const { data } = await db.from('submissions')
+    .select('id, homework_id, submitted, submitted_at, rejection_status, rejection_reason, rejected_at')
+    .eq('student_id', stuId);
+  (data || []).forEach(s => { window._mySubmissions[s.homework_id] = s; });
+  checkRejections();
+  // 선택된 숙제가 있으면 hwDetail도 업데이트
+  const hwSel = document.getElementById('homeworkSelect');
+  if (hwSel.value) hwSel.dispatchEvent(new Event('change'));
+}
+
+function checkRejections() {
+  const subs = window._mySubmissions || {};
+  const rejected = Object.values(subs).filter(s => s.rejection_status === 'rejected');
+  const banner = document.getElementById('rejectionBanner');
+  const list = document.getElementById('rejectionList');
+  if (!rejected.length) { banner.style.display = 'none'; return; }
+  const hws = window._homeworks || [];
+  list.innerHTML = rejected.map(s => {
+    const hw = hws.find(h => h.id === s.homework_id);
+    const hwLabel = hw ? `[${hw.subject}] ${hw.due_date}` : '숙제';
+    return `• <strong>${hwLabel}</strong> — ${s.rejection_reason || '사유 없음'}`;
+  }).join('<br>');
+  banner.style.display = 'block';
+}
 
 // ============================================================
 //  PHOTO HANDLING
@@ -565,13 +626,21 @@ async function submitHomework() {
         photoUrls.push(urlData.publicUrl);
       }
       setProgress(90, '제출 정보 저장 중...');
-      const { data: existing } = await db.from('submissions')
-        .select('id').eq('homework_id', hwId).eq('student_id', studentId).single();
+      // _mySubmissions가 로드된 경우 재사용, 아니면 DB 조회
+      const cached = window._mySubmissions ? window._mySubmissions[hwId] : null;
+      const { data: existing } = cached
+        ? { data: cached }
+        : await db.from('submissions').select('id,rejection_status').eq('homework_id', hwId).eq('student_id', studentId).maybeSingle();
       if (existing) {
-        const { error: upErr } = await db.from('submissions').update({
+        // 반려된 숙제를 재제출하는 경우 rejection_status → 'resubmitted'
+        const wasRejected = existing.rejection_status === 'rejected';
+        const updateFields = {
           submitted: true, submitted_at: new Date().toISOString(),
-          photo_urls: photoUrls, submit_memo: memo
-        }).eq('id', existing.id);
+          photo_urls: photoUrls, submit_memo: memo,
+          reviewed: false
+        };
+        if (wasRejected) updateFields.rejection_status = 'resubmitted';
+        const { error: upErr } = await db.from('submissions').update(updateFields).eq('id', existing.id);
         if (upErr) throw upErr;
       } else {
         const { error: inErr } = await db.from('submissions').insert({
@@ -581,10 +650,13 @@ async function submitHomework() {
         });
         if (inErr) throw inErr;
       }
+      const isResubmit = existing && existing.rejection_status === 'rejected';
       setProgress(100, '완료!');
-      document.getElementById('successIcon').textContent = '✅';
-      document.getElementById('successTitle').textContent = '제출되었습니다!';
-      document.getElementById('successMsg').innerHTML = `<strong>${studentName}</strong> 학생의 숙제가 선생님께 전달되었습니다.<br><br><span style="display:inline-block;background:#fee2e2;border-radius:10px;padding:8px 14px;font-size:13px;color:#991b1b;font-weight:700">⚠️ 채점까지 완료해야 숙제 인정!</span>`;
+      document.getElementById('successIcon').textContent = isResubmit ? '🔄' : '✅';
+      document.getElementById('successTitle').textContent = isResubmit ? '재제출되었습니다!' : '제출되었습니다!';
+      document.getElementById('successMsg').innerHTML = isResubmit
+        ? `<strong>${studentName}</strong> 학생의 숙제가 재제출되었습니다.<br>선생님 확인을 기다려 주세요! 😊`
+        : `<strong>${studentName}</strong> 학생의 숙제가 선생님께 전달되었습니다.<br><br><span style="display:inline-block;background:#fee2e2;border-radius:10px;padding:8px 14px;font-size:13px;color:#991b1b;font-weight:700">⚠️ 채점까지 완료해야 숙제 인정!</span>`;
     }
     setTimeout(showSuccess, 500);
   } catch (err) {

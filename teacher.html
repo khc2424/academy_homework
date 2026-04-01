@@ -172,6 +172,7 @@ function checkPw() {
       <div class="col-md-2"><div class="stat-card"><div class="d-flex align-items-center gap-3"><div class="stat-icon" style="background:#fef9c3">📸</div><div><div class="stat-v" id="dNewPhotos">-</div><div class="stat-l">미확인 사진</div></div></div></div></div>
       <div class="col-md-2"><div class="stat-card" style="cursor:pointer" onclick="showPage('extensions')"><div class="d-flex align-items-center gap-3"><div class="stat-icon" style="background:#fff0f0">📅</div><div><div class="stat-v" id="dPendingExt" style="color:var(--danger)">-</div><div class="stat-l">연장 신청</div></div></div></div></div>
       <div class="col-md-2"><div class="stat-card" style="cursor:pointer" onclick="showPage('photos')"><div class="d-flex align-items-center gap-3"><div class="stat-icon" style="background:#f0fdf4">✅</div><div><div class="stat-v" id="dTotalSub" style="color:var(--success)">-</div><div class="stat-l">제출 인원</div></div></div></div></div>
+      <div class="col-md-2"><div class="stat-card" style="cursor:pointer" onclick="showPage('dashboard')"><div class="d-flex align-items-center gap-3"><div class="stat-icon" style="background:#fee2e2">🚨</div><div><div class="stat-v" id="dMissing" style="color:var(--danger)">-</div><div class="stat-l">미제출인원</div></div></div></div></div>
     </div>
     <div class="row g-3">
       <div class="col-md-6"><div class="card-c"><div class="card-h">🕐 최근 숙제</div><div id="dashHW" style="padding:8px 0"></div></div></div>
@@ -180,7 +181,7 @@ function checkPw() {
           <span>🚨 미제출 현황</span>
           <div style="display:flex;gap:4px;align-items:center">
             <button class="btn-o" style="padding:2px 8px;font-size:13px;line-height:1" onclick="dashMissingPrev()">◀</button>
-            <span id="dashMissingDateLbl" style="font-size:12px;font-weight:600;min-width:72px;text-align:center;color:var(--primary)"></span>
+            <input type="date" id="dashMissingDateInput" style="border:none;outline:none;font-size:12px;font-weight:600;color:var(--primary);cursor:pointer;background:transparent;width:116px;text-align:center" onchange="dashMissingDateChanged(this.value)">
             <button class="btn-o" style="padding:2px 8px;font-size:13px;line-height:1" onclick="dashMissingNext()">▶</button>
           </div>
         </div>
@@ -480,7 +481,7 @@ function openModal(id){document.getElementById(id).classList.add('show');}
 function closeModal(id){document.getElementById(id).classList.remove('show');}
 document.querySelectorAll('.modal-ov').forEach(m=>m.addEventListener('click',e=>{if(e.target===m)closeModal(m.id);}));
 
-function getDueBadge(d){ if(!d)return ''; const due=new Date(d+'T00:00:00');const now=new Date();now.setHours(0,0,0,0);const diff=Math.ceil((due-now)/86400000); if(diff<0)return`<span style="background:#fee2e2;color:#991b1b;padding:2px 8px;border-radius:20px;font-size:12px">마감초과</span>`; if(diff<=3)return`<span style="background:#fef3c7;color:#92400e;padding:2px 8px;border-radius:20px;font-size:12px">D-${diff}</span>`; return`<span style="background:#dcfce7;color:#166534;padding:2px 8px;border-radius:20px;font-size:12px">D-${diff}</span>`; }
+function getDueBadge(d){ if(!d)return ''; const due=new Date(d+'T00:00:00');const now=new Date();now.setHours(0,0,0,0);const diff=Math.ceil((due-now)/86400000); if(diff<0)return`<span style="background:#fee2e2;color:#991b1b;padding:2px 8px;border-radius:20px;font-size:12px">마감초과</span>`; if(diff===0)return`<span style="background:#fee2e2;color:#991b1b;padding:2px 8px;border-radius:20px;font-size:12px;font-weight:700">D-DAY</span>`; if(diff<=3)return`<span style="background:#fef3c7;color:#92400e;padding:2px 8px;border-radius:20px;font-size:12px">D-${diff}</span>`; return`<span style="background:#dcfce7;color:#166534;padding:2px 8px;border-radius:20px;font-size:12px">D-${diff}</span>`; }
 
 function getClasses() { return [...new Set(_students.map(s=>s.class))].sort(); }
 
@@ -547,6 +548,17 @@ function renderDashboard() {
   const clsRates = classes.map(c => getClassRate(c));
   const avgRate = clsRates.length ? Math.round(clsRates.reduce((a,b)=>a+b,0)/clsRates.length) : 0;
   document.getElementById('dSubmitRate').textContent = avgRate + '%';
+  // 미제출인원 (active date 기준)
+  const activeDate = getMissingActiveDate();
+  const activeHWs = _homeworks.filter(h => h.due_date === activeDate);
+  let missingCnt = 0;
+  activeHWs.forEach(hw => {
+    const sub = _submissions[hw.id] || {};
+    (hw.homework_classes||[]).forEach(clsObj => {
+      _students.filter(s => s.class === clsObj.class_name).forEach(s => { if(!sub[s.id]?.submitted) missingCnt++; });
+    });
+  });
+  document.getElementById('dMissing').textContent = missingCnt;
   // Recent HW
   const rwEl=document.getElementById('dashHW');
   if(!_homeworks.length){rwEl.innerHTML='<div class="empty-st"><span class="empty-ic">📭</span>숙제 없음</div>';}
@@ -1054,7 +1066,7 @@ function renderExtensions() {
       const clsObj = (hw?.homework_classes||[])[0];
       const reqTime = TIMES[e.requested_time] || e.requested_time;
       return `<tr>
-        <td style="font-weight:600">${e.students?.name||'?'}</td>
+        <td style="font-weight:600">${e.students?.name||'?'}${e.source==='parent'?'<span style="background:#dbeafe;color:#1e40af;padding:1px 6px;border-radius:8px;font-size:10px;font-weight:700;margin-left:4px;vertical-align:middle">학부모</span>':''}</td>
         <td><span class="sub-badge">${e.students?.class||'?'}</span></td>
         <td style="font-size:12px">${clsObj?.textbook||''} (기존: ${hw?.due_date||'?'})</td>
         <td style="font-size:13px;font-weight:600;color:var(--primary)">${e.requested_until} ${reqTime}</td>
@@ -1109,21 +1121,29 @@ function updateMissingBadge() {
 
 let _dashMissingDate = null;
 
+function localDateAddDays(dateStr, n) {
+  const [y,m,d] = dateStr.split('-').map(Number);
+  const dt = new Date(y, m-1, d+n);
+  return dt.getFullYear()+'-'+String(dt.getMonth()+1).padStart(2,'0')+'-'+String(dt.getDate()).padStart(2,'0');
+}
 function dashMissingPrev() {
-  const d = new Date(_dashMissingDate+'T00:00:00'); d.setDate(d.getDate()-1);
-  _dashMissingDate = d.toISOString().slice(0,10);
+  if(!_dashMissingDate) _dashMissingDate = getMissingActiveDate();
+  _dashMissingDate = localDateAddDays(_dashMissingDate, -1);
   renderDashMissing();
 }
 function dashMissingNext() {
-  const d = new Date(_dashMissingDate+'T00:00:00'); d.setDate(d.getDate()+1);
-  _dashMissingDate = d.toISOString().slice(0,10);
+  if(!_dashMissingDate) _dashMissingDate = getMissingActiveDate();
+  _dashMissingDate = localDateAddDays(_dashMissingDate, 1);
   renderDashMissing();
+}
+function dashMissingDateChanged(val) {
+  if(val) { _dashMissingDate = val; renderDashMissing(); }
 }
 
 function renderDashMissing() {
   if(!_dashMissingDate) _dashMissingDate = getMissingActiveDate();
-  const lbl = document.getElementById('dashMissingDateLbl');
-  if(lbl) lbl.textContent = _dashMissingDate.slice(5).replace('-','/') + ' 기한';
+  const inp = document.getElementById('dashMissingDateInput');
+  if(inp) inp.value = _dashMissingDate;
   const el = document.getElementById('dashMissing'); if(!el) return;
   const hws = _homeworks.filter(h=>h.due_date===_dashMissingDate);
   if(!hws.length) { el.innerHTML='<div style="text-align:center;padding:24px;color:#aaa;font-size:13px">해당 날짜에 숙제가 없습니다</div>'; return; }

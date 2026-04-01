@@ -13,67 +13,44 @@
       --gray-50:#f9fafb; --gray-100:#f3f4f6; --gray-200:#e5e7eb;
       --gray-600:#4b5563; --gray-800:#1f2937;
     }
-    * { box-sizing: border-box; }
+    * { box-sizing:border-box; }
     body { background:var(--gray-50); font-family:'Segoe UI','Malgun Gothic',sans-serif; min-height:100vh; }
 
     /* ── 로그인 ── */
     .login-wrap { min-height:100vh; display:flex; align-items:center; justify-content:center; padding:20px; }
-    .login-box {
-      background:#fff; border-radius:20px; padding:40px 32px;
-      width:100%; max-width:380px;
-      box-shadow:0 8px 40px rgba(79,70,229,.12);
-    }
+    .login-box { background:#fff; border-radius:20px; padding:40px 32px; width:100%; max-width:380px; box-shadow:0 8px 40px rgba(79,70,229,.12); }
     .login-logo { font-size:48px; text-align:center; margin-bottom:8px; }
     .login-title { font-size:20px; font-weight:700; color:var(--gray-800); text-align:center; margin-bottom:4px; }
     .login-sub { font-size:13px; color:var(--gray-600); text-align:center; margin-bottom:28px; }
-    .fc {
-      border:1px solid var(--gray-200); border-radius:10px;
-      padding:12px 14px; font-size:15px; width:100%; outline:none;
-      transition:border .15s;
-    }
+    .fc { border:1px solid var(--gray-200); border-radius:10px; padding:12px 14px; font-size:15px; width:100%; outline:none; transition:border .15s; }
     .fc:focus { border-color:var(--primary); }
-    .btn-login {
-      width:100%; background:var(--primary); color:#fff; border:none;
-      border-radius:10px; padding:13px; font-size:15px; font-weight:700;
-      cursor:pointer; margin-top:8px; transition:background .15s;
-    }
+    select.fc { appearance:auto; }
+    .btn-login { width:100%; background:var(--primary); color:#fff; border:none; border-radius:10px; padding:13px; font-size:15px; font-weight:700; cursor:pointer; margin-top:8px; transition:background .15s; }
     .btn-login:hover { background:#4338ca; }
     .login-err { color:#ef4444; font-size:13px; margin-top:8px; text-align:center; display:none; }
 
-    /* ── 앱 레이아웃 ── */
+    /* ── 앱 ── */
     #app { display:none; }
-    .app-header {
-      background:var(--primary); color:#fff;
-      padding:16px 20px; display:flex; align-items:center; justify-content:space-between;
-      position:sticky; top:0; z-index:100;
-    }
+    .app-header { background:var(--primary); color:#fff; padding:16px 20px; display:flex; align-items:center; justify-content:space-between; position:sticky; top:0; z-index:100; }
     .app-header-title { font-size:16px; font-weight:700; }
     .app-header-sub { font-size:12px; opacity:.75; margin-top:2px; }
     .btn-logout { background:rgba(255,255,255,.2); border:none; color:#fff; border-radius:8px; padding:6px 14px; font-size:13px; cursor:pointer; }
     .btn-logout:hover { background:rgba(255,255,255,.3); }
-
-    .tab-bar {
-      background:#fff; border-bottom:1px solid var(--gray-200);
-      display:flex; position:sticky; top:56px; z-index:99;
-    }
-    .tab-btn {
-      flex:1; padding:13px 0; font-size:13px; font-weight:600; text-align:center;
-      cursor:pointer; color:var(--gray-600); border:none; background:none;
-      border-bottom:3px solid transparent; transition:all .15s;
-    }
+    .tab-bar { background:#fff; border-bottom:1px solid var(--gray-200); display:flex; position:sticky; top:56px; z-index:99; }
+    .tab-btn { flex:1; padding:13px 0; font-size:13px; font-weight:600; text-align:center; cursor:pointer; color:var(--gray-600); border:none; background:none; border-bottom:3px solid transparent; transition:all .15s; }
     .tab-btn.active { color:var(--primary); border-bottom-color:var(--primary); }
-
     .content { padding:20px 16px; max-width:640px; margin:0 auto; }
 
     /* ── 카드 ── */
-    .item-card {
-      background:#fff; border-radius:14px; border:1px solid var(--gray-200);
-      padding:16px; margin-bottom:12px;
-    }
+    .item-card { background:#fff; border-radius:14px; border:1px solid var(--gray-200); padding:16px; margin-bottom:12px; }
     .item-card-title { font-size:14px; font-weight:700; color:var(--gray-800); margin-bottom:6px; }
-    .item-meta { font-size:12px; color:var(--gray-600); line-height:1.8; }
+    .item-meta { font-size:12px; color:var(--gray-600); line-height:1.9; }
     .empty-st { text-align:center; padding:60px 16px; color:var(--gray-600); }
     .empty-ic { font-size:48px; opacity:.3; display:block; margin-bottom:12px; }
+    .summary-grid { display:grid; grid-template-columns:repeat(3,1fr); gap:10px; margin-bottom:20px; }
+    .summary-card { background:#fff; border-radius:12px; border:1px solid var(--gray-200); padding:14px 10px; text-align:center; }
+    .summary-num { font-size:26px; font-weight:700; color:var(--primary); line-height:1; }
+    .summary-label { font-size:11px; color:var(--gray-600); margin-top:4px; }
 
     /* ── 배지 ── */
     .bdg { display:inline-block; padding:3px 10px; border-radius:20px; font-size:12px; font-weight:700; }
@@ -83,53 +60,46 @@
     .bdg-resub{ background:#ede9fe; color:#5b21b6; }
     .bdg-ext  { background:#dbeafe; color:#1e40af; }
 
-    /* ── 요약 카드 ── */
-    .summary-grid { display:grid; grid-template-columns:repeat(3,1fr); gap:10px; margin-bottom:20px; }
-    .summary-card {
-      background:#fff; border-radius:12px; border:1px solid var(--gray-200);
-      padding:14px 10px; text-align:center;
-    }
-    .summary-num { font-size:26px; font-weight:700; color:var(--primary); line-height:1; }
-    .summary-label { font-size:11px; color:var(--gray-600); margin-top:4px; }
-
     /* ── 반려 배너 ── */
-    .reject-alert {
-      background:#fee2e2; border:1.5px solid #fca5a5; border-radius:12px;
-      padding:14px 16px; margin-bottom:16px; display:none;
-    }
+    .reject-alert { background:#fee2e2; border:1.5px solid #fca5a5; border-radius:12px; padding:14px 16px; margin-bottom:16px; display:none; }
     .reject-alert-title { font-weight:700; color:#991b1b; font-size:14px; margin-bottom:4px; }
     .reject-alert-body { font-size:13px; color:#7f1d1d; line-height:1.8; }
 
+    /* ── 연장신청 폼 ── */
+    .ext-form { background:#fff; border-radius:14px; border:1.5px solid var(--primary); padding:18px; margin-bottom:16px; display:none; }
+    .ext-form.show { display:block; }
+    .ext-preset-wrap { display:flex; flex-wrap:wrap; gap:8px; margin-top:8px; }
+    .ext-preset-btn { background:var(--gray-100); border:1.5px solid var(--gray-200); border-radius:20px; padding:6px 14px; font-size:13px; cursor:pointer; transition:all .15s; }
+    .ext-preset-btn.selected { background:var(--primary-light); border-color:var(--primary); color:var(--primary); font-weight:700; }
+    .ext-custom-input { width:100%; border:1px solid var(--gray-200); border-radius:8px; padding:8px 12px; font-size:13px; margin-top:8px; outline:none; }
+    .ext-custom-input:focus { border-color:var(--primary); }
+    .btn-ext-submit { background:var(--primary); color:#fff; border:none; border-radius:10px; padding:11px 20px; font-size:14px; font-weight:700; cursor:pointer; width:100%; margin-top:12px; }
+    .btn-ext-submit:hover { background:#4338ca; }
+    .btn-new-ext { background:var(--primary-light); color:var(--primary); border:1.5px solid var(--primary); border-radius:10px; padding:9px 16px; font-size:13px; font-weight:700; cursor:pointer; width:100%; margin-bottom:16px; }
+
     /* ── 로딩 ── */
-    .loading-overlay {
-      position:fixed; inset:0; background:rgba(255,255,255,.85);
-      display:none; align-items:center; justify-content:center;
-      flex-direction:column; gap:12px; z-index:9999;
-    }
+    .loading-overlay { position:fixed; inset:0; background:rgba(255,255,255,.85); display:none; align-items:center; justify-content:center; flex-direction:column; gap:12px; z-index:9999; }
     .loading-overlay.show { display:flex; }
-    .spinner {
-      width:36px; height:36px; border:3px solid var(--gray-200);
-      border-top-color:var(--primary); border-radius:50%;
-      animation:spin .7s linear infinite;
-    }
+    .spinner { width:36px; height:36px; border:3px solid var(--gray-200); border-top-color:var(--primary); border-radius:50%; animation:spin .7s linear infinite; }
     @keyframes spin { to { transform:rotate(360deg); } }
+
+    /* ── 섹션 제목 ── */
+    .section-title { font-size:14px; font-weight:700; color:var(--gray-800); margin-bottom:12px; }
   </style>
 </head>
 <body>
 
-<!-- 로딩 -->
 <div class="loading-overlay" id="loadingOverlay">
   <div class="spinner"></div>
   <div style="font-size:13px;color:var(--gray-600)">불러오는 중...</div>
 </div>
 
-<!-- 로그인 화면 -->
+<!-- 로그인 -->
 <div class="login-wrap" id="loginWrap">
   <div class="login-box">
     <div class="login-logo">👨‍👩‍👧</div>
     <div class="login-title">학부모 확인</div>
     <div class="login-sub">자녀의 이름과 전화번호 뒷 4자리를 입력하세요</div>
-
     <div class="mb-3">
       <label style="font-size:13px;font-weight:600;color:var(--gray-800);display:block;margin-bottom:6px">자녀 이름</label>
       <input class="fc" id="loginName" type="text" placeholder="예: 홍길동" autocomplete="off">
@@ -145,7 +115,6 @@
 
 <!-- 앱 -->
 <div id="app">
-  <!-- 헤더 -->
   <div class="app-header">
     <div>
       <div class="app-header-title" id="appTitle">학부모 확인</div>
@@ -153,8 +122,6 @@
     </div>
     <button class="btn-logout" onclick="doLogout()">로그아웃</button>
   </div>
-
-  <!-- 탭 -->
   <div class="tab-bar">
     <button class="tab-btn active" id="tab-summary" onclick="switchTab('summary')">📊 요약</button>
     <button class="tab-btn" id="tab-submissions" onclick="switchTab('submissions')">📚 제출 이력</button>
@@ -163,29 +130,16 @@
 
   <!-- 요약 탭 -->
   <div class="content" id="page-summary">
-    <!-- 반려 알림 -->
     <div class="reject-alert" id="rejectAlert">
       <div class="reject-alert-title">❌ 반려된 숙제가 있어요!</div>
       <div class="reject-alert-body" id="rejectAlertBody"></div>
     </div>
-
     <div class="summary-grid">
-      <div class="summary-card">
-        <div class="summary-num" id="sumTotal">-</div>
-        <div class="summary-label">전체 숙제</div>
-      </div>
-      <div class="summary-card">
-        <div class="summary-num" id="sumSubmitted" style="color:var(--success)">-</div>
-        <div class="summary-label">제출 완료</div>
-      </div>
-      <div class="summary-card">
-        <div class="summary-num" id="sumMissing" style="color:var(--danger)">-</div>
-        <div class="summary-label">미제출</div>
-      </div>
+      <div class="summary-card"><div class="summary-num" id="sumTotal">-</div><div class="summary-label">전체 숙제</div></div>
+      <div class="summary-card"><div class="summary-num" id="sumSubmitted" style="color:var(--success)">-</div><div class="summary-label">제출 완료</div></div>
+      <div class="summary-card"><div class="summary-num" id="sumMissing" style="color:var(--danger)">-</div><div class="summary-label">미제출</div></div>
     </div>
-
-    <!-- 최근 활동 -->
-    <div style="font-size:14px;font-weight:700;color:var(--gray-800);margin-bottom:12px">최근 활동</div>
+    <div class="section-title">📋 최근 한 달 활동</div>
     <div id="recentList"><div class="empty-st"><span class="empty-ic">📋</span>활동 내역이 없습니다</div></div>
   </div>
 
@@ -196,6 +150,45 @@
 
   <!-- 연장 신청 탭 -->
   <div class="content" id="page-extensions" style="display:none">
+    <!-- 새 연장 신청 버튼 -->
+    <button class="btn-new-ext" onclick="toggleExtForm()">➕ 새 연장 신청하기</button>
+
+    <!-- 연장 신청 폼 -->
+    <div class="ext-form" id="extForm">
+      <div class="section-title" style="margin-bottom:12px">📅 연장 신청</div>
+      <div class="mb-3">
+        <label style="font-size:13px;font-weight:600;display:block;margin-bottom:6px">숙제 선택 *</label>
+        <select class="fc" id="extHwSelect">
+          <option value="">숙제를 선택하세요</option>
+        </select>
+      </div>
+      <div class="mb-3">
+        <label style="font-size:13px;font-weight:600;display:block;margin-bottom:6px">언제까지 제출할 예정인가요? *</label>
+        <div class="ext-preset-wrap" id="extPresetWrap">
+          <button class="ext-preset-btn" onclick="parentSelectPreset(this,'30분 후')">30분 후</button>
+          <button class="ext-preset-btn" onclick="parentSelectPreset(this,'1시간 후')">1시간 후</button>
+          <button class="ext-preset-btn" onclick="parentSelectPreset(this,'2시간 후')">2시간 후</button>
+          <button class="ext-preset-btn" onclick="parentSelectPreset(this,'내일 오후 2시')">내일 오후 2시</button>
+          <button class="ext-preset-btn" onclick="parentSelectPreset(this,'내일 등원 전')">내일 등원 전</button>
+          <button class="ext-preset-btn" onclick="parentSelectPreset(this,'내일 숙제와 함께')">내일 숙제와 함께</button>
+          <button class="ext-preset-btn" onclick="parentSelectPreset(this,'기타')">기타</button>
+        </div>
+        <div id="extCustomBox" style="display:none;margin-top:8px">
+          <input class="ext-custom-input" type="text" id="extCustom" placeholder="예: 이번 주 금요일까지 제출할게요">
+        </div>
+      </div>
+      <div class="mb-3">
+        <label style="font-size:13px;font-weight:600;display:block;margin-bottom:6px">연장 사유 *</label>
+        <textarea class="fc" id="extReason" rows="3" placeholder="연장이 필요한 이유를 적어주세요&#10;예: 오늘 몸이 좋지 않아서 내일 제출하겠습니다" style="resize:none"></textarea>
+      </div>
+      <div style="display:flex;gap:8px">
+        <button class="btn-ext-submit" onclick="submitParentExtension()">📅 연장 신청하기</button>
+        <button style="background:var(--gray-100);border:1px solid var(--gray-200);border-radius:10px;padding:11px 16px;font-size:13px;cursor:pointer;font-weight:600" onclick="toggleExtForm()">취소</button>
+      </div>
+    </div>
+
+    <!-- 연장 신청 내역 -->
+    <div class="section-title">📋 신청 내역</div>
     <div id="extensionList"><div class="empty-st"><span class="empty-ic">📅</span>연장 신청 내역이 없습니다</div></div>
   </div>
 </div>
@@ -211,14 +204,13 @@ let _student = null;
 let _submissions = [];
 let _extensions = [];
 let _homeworks = [];
+let _parentExtPreset = '';
 
-// ============================================================
-//  KST 변환
-// ============================================================
+// ── KST 변환
 function toKST(utcStr) {
   if (!utcStr) return '-';
   const d = new Date(utcStr);
-  const kst = new Date(d.getTime() + 9 * 60 * 60 * 1000);
+  const kst = new Date(d.getTime() + 9*60*60*1000);
   const mm = String(kst.getUTCMonth()+1).padStart(2,'0');
   const dd = String(kst.getUTCDate()).padStart(2,'0');
   const hh = String(kst.getUTCHours()).padStart(2,'0');
@@ -228,38 +220,36 @@ function toKST(utcStr) {
 function toKSTDate(utcStr) {
   if (!utcStr) return '-';
   const d = new Date(utcStr);
-  const kst = new Date(d.getTime() + 9 * 60 * 60 * 1000);
+  const kst = new Date(d.getTime() + 9*60*60*1000);
   const mm = String(kst.getUTCMonth()+1).padStart(2,'0');
   const dd = String(kst.getUTCDate()).padStart(2,'0');
   return `${kst.getUTCFullYear()}.${mm}.${dd}`;
 }
+function localToday() {
+  const now = new Date();
+  const kst = new Date(now.getTime() + 9*60*60*1000);
+  return kst.toISOString().slice(0,10);
+}
 
-// ============================================================
-//  로그인 / 로그아웃
-// ============================================================
+// ── 로그인
 async function doLogin() {
   const name  = document.getElementById('loginName').value.trim();
   const phone = document.getElementById('loginPhone').value.trim();
   const errEl = document.getElementById('loginErr');
   errEl.style.display = 'none';
-  if (!name || !phone) { errEl.textContent = '이름과 전화번호를 모두 입력해주세요.'; errEl.style.display = 'block'; return; }
-  if (phone.length !== 4 || !/^\d{4}$/.test(phone)) { errEl.textContent = '전화번호 뒷 4자리를 숫자로 입력해주세요.'; errEl.style.display = 'block'; return; }
+  if (!name || !phone) { errEl.textContent='이름과 전화번호를 모두 입력해주세요.'; errEl.style.display='block'; return; }
+  if (phone.length!==4 || !/^\d{4}$/.test(phone)) { errEl.textContent='전화번호 뒷 4자리를 숫자로 입력해주세요.'; errEl.style.display='block'; return; }
 
   showLoading();
   const { data, error } = await db.from('students').select('*').eq('name', name);
   hideLoading();
+  if (error || !data || !data.length) { errEl.textContent='이름 또는 전화번호가 일치하지 않습니다.'; errEl.style.display='block'; return; }
 
-  if (error || !data || !data.length) {
-    errEl.textContent = '이름 또는 전화번호가 일치하지 않습니다.'; errEl.style.display = 'block'; return;
-  }
-  // 전화번호 뒷 4자리 비교
   const matched = data.find(s => {
-    const p = (s.phone || '').replace(/\D/g, '');
+    const p = (s.phone||'').replace(/\D/g,'');
     return p.slice(-4) === phone;
   });
-  if (!matched) {
-    errEl.textContent = '이름 또는 전화번호가 일치하지 않습니다.'; errEl.style.display = 'block'; return;
-  }
+  if (!matched) { errEl.textContent='이름 또는 전화번호가 일치하지 않습니다.'; errEl.style.display='block'; return; }
   _student = matched;
   sessionStorage.setItem('parentStudent', JSON.stringify(matched));
   await initApp();
@@ -267,204 +257,234 @@ async function doLogin() {
 
 function doLogout() {
   sessionStorage.removeItem('parentStudent');
-  _student = null; _submissions = []; _extensions = []; _homeworks = [];
-  document.getElementById('loginWrap').style.display = 'flex';
-  document.getElementById('app').style.display = 'none';
-  document.getElementById('loginName').value = '';
-  document.getElementById('loginPhone').value = '';
+  _student=null; _submissions=[]; _extensions=[]; _homeworks=[];
+  document.getElementById('loginWrap').style.display='flex';
+  document.getElementById('app').style.display='none';
+  document.getElementById('loginName').value='';
+  document.getElementById('loginPhone').value='';
+  switchTab('summary');
 }
 
-// ============================================================
-//  앱 초기화
-// ============================================================
+// ── 앱 초기화
 async function initApp() {
   showLoading();
-  document.getElementById('appTitle').textContent = _student.name + ' 학생';
-  document.getElementById('appSub').textContent = _student.class + '반 · ' + ACADEMY_NAME;
-  document.title = _student.name + ' · 학부모 확인';
+  document.getElementById('appTitle').textContent = _student.name+' 학생';
+  document.getElementById('appSub').textContent = _student.class+'반 · '+ACADEMY_NAME;
+  document.title = _student.name+' · 학부모 확인';
 
-  // 병렬로 데이터 로드
-  const [hwRes, subRes, extRes] = await Promise.all([
-    db.from('homeworks').select('id, subject, due_date, homework_classes(class_name, textbook, content, problem_count)'),
-    db.from('submissions').select('*').eq('student_id', _student.id).order('submitted_at', { ascending: false }),
-    db.from('extension_requests').select('*').eq('student_id', _student.id).order('created_at', { ascending: false })
-  ]);
-  _homeworks   = hwRes.data  || [];
-  _submissions = subRes.data || [];
-  _extensions  = extRes.data || [];
+  try {
+    const [hwRes, subRes, extRes] = await Promise.all([
+      db.from('homeworks').select('id,subject,due_date,homework_classes(class_name,textbook,content,problem_count)').order('due_date',{ascending:false}),
+      db.from('submissions').select('*').eq('student_id',_student.id).order('submitted_at',{ascending:false}),
+      db.from('extension_requests').select('*').eq('student_id',_student.id).order('id',{ascending:false})
+    ]);
+    _homeworks   = hwRes.data  || [];
+    _submissions = subRes.data || [];
+    _extensions  = extRes.data || [];
+  } catch(e) {
+    console.error('데이터 로딩 오류:', e);
+  }
   hideLoading();
-
-  document.getElementById('loginWrap').style.display = 'none';
-  document.getElementById('app').style.display = 'block';
-
+  document.getElementById('loginWrap').style.display='none';
+  document.getElementById('app').style.display='block';
   renderSummary();
   renderSubmissions();
   renderExtensions();
+  populateExtHwSelect();
 }
 
-// ============================================================
-//  탭 전환
-// ============================================================
+// ── 탭 전환
 function switchTab(name) {
-  ['summary','submissions','extensions'].forEach(t => {
-    document.getElementById('page-'+t).style.display = t===name ? 'block' : 'none';
-    document.getElementById('tab-'+t).classList.toggle('active', t===name);
+  ['summary','submissions','extensions'].forEach(t=>{
+    document.getElementById('page-'+t).style.display = t===name?'block':'none';
+    document.getElementById('tab-'+t).classList.toggle('active',t===name);
   });
 }
 
-// ============================================================
-//  요약 탭
-// ============================================================
+// ── 요약 탭
 function renderSummary() {
-  const total = _homeworks.filter(h => {
-    const cls = (h.homework_classes||[]).map(c=>c.class_name);
+  const myHws = _homeworks.filter(h=>{
+    const cls=(h.homework_classes||[]).map(c=>c.class_name);
     return !cls.length || cls.includes(_student.class);
-  }).length;
-  const submitted = _submissions.filter(s => s.submitted).length;
-  const missing = Math.max(0, total - submitted);
-
-  document.getElementById('sumTotal').textContent = total;
+  });
+  const submitted = _submissions.filter(s=>s.submitted).length;
+  document.getElementById('sumTotal').textContent = myHws.length;
   document.getElementById('sumSubmitted').textContent = submitted;
-  document.getElementById('sumMissing').textContent = missing;
+  document.getElementById('sumMissing').textContent = Math.max(0, myHws.length - submitted);
 
-  // 반려 알림
-  const rejected = _submissions.filter(s => s.rejection_status === 'rejected');
+  // 반려 배너
+  const rejected = _submissions.filter(s=>s.rejection_status==='rejected');
   const rejectAlert = document.getElementById('rejectAlert');
   if (rejected.length) {
-    const lines = rejected.map(s => {
+    document.getElementById('rejectAlertBody').innerHTML = rejected.map(s=>{
       const hw = _homeworks.find(h=>h.id===s.homework_id);
-      const label = hw ? `[${hw.subject}] ${hw.due_date}` : '숙제';
-      return `• <strong>${label}</strong> — ${s.rejection_reason||'사유 없음'}`;
+      return `• <strong>${hw?`[${hw.subject}] ${hw.due_date}`:'숙제'}</strong> — ${s.rejection_reason||'사유 없음'}`;
     }).join('<br>');
-    document.getElementById('rejectAlertBody').innerHTML = lines;
-    rejectAlert.style.display = 'block';
+    rejectAlert.style.display='block';
   } else {
-    rejectAlert.style.display = 'none';
+    rejectAlert.style.display='none';
   }
 
-  // 최근 활동 (제출 + 연장, 최근 5건)
+  // 최근 한 달 활동 (30일 이내)
+  const cutoff = new Date(); cutoff.setDate(cutoff.getDate()-30);
   const activities = [];
-  _submissions.forEach(s => {
-    if (!s.submitted_at) return;
+  _submissions.forEach(s=>{
+    if(!s.submitted_at) return;
+    const t = new Date(s.submitted_at);
+    if(t < cutoff) return;
     const hw = _homeworks.find(h=>h.id===s.homework_id);
-    const label = hw ? `[${hw.subject}] ${hw.due_date}` : '숙제';
+    const label = hw?`[${hw.subject}] ${hw.due_date}`:'숙제';
     let badge = '';
-    if (s.rejection_status==='rejected')    badge = '<span class="bdg bdg-rej">❌ 반려</span>';
-    else if (s.rejection_status==='resubmitted') badge = '<span class="bdg bdg-resub">🔄 재제출</span>';
-    else if (s.reviewed) badge = '<span class="bdg bdg-ok">✓ 확인 완료</span>';
-    else badge = '<span class="bdg bdg-wait">⏳ 확인 대기</span>';
-    activities.push({ time: new Date(s.submitted_at), html:
-      `<div class="item-card">
-        <div class="item-card-title">${label} ${badge}</div>
-        <div class="item-meta">📸 제출 · ${toKST(s.submitted_at)}</div>
-      </div>`
-    });
+    if(s.rejection_status==='rejected')      badge='<span class="bdg bdg-rej">❌ 반려</span>';
+    else if(s.rejection_status==='resubmitted') badge='<span class="bdg bdg-resub">🔄 재제출</span>';
+    else if(s.reviewed)                       badge='<span class="bdg bdg-ok">✓ 확인 완료</span>';
+    else                                      badge='<span class="bdg bdg-wait">⏳ 확인 대기</span>';
+    activities.push({time:t, html:`<div class="item-card"><div class="item-card-title">${label} ${badge}</div><div class="item-meta">📸 제출 · ${toKST(s.submitted_at)}</div></div>`});
   });
-  _extensions.forEach(e => {
+  _extensions.forEach(e=>{
+    if(!e.created_at) return;
+    const t = new Date(e.created_at);
+    if(t < cutoff) return;
     const hw = _homeworks.find(h=>h.id===e.homework_id);
-    const label = hw ? `[${hw.subject}] ${hw.due_date}` : '숙제';
-    activities.push({ time: new Date(e.created_at||0), html:
-      `<div class="item-card">
-        <div class="item-card-title">${label} <span class="bdg bdg-ext">📅 연장 신청</span></div>
-        <div class="item-meta">🕐 ${e.requested_time||'-'} · ${toKSTDate(e.created_at)}</div>
-      </div>`
-    });
+    const label = hw?`[${hw.subject}] ${hw.due_date}`:'숙제';
+    const srcLabel = e.source==='parent'?' <span style="font-size:11px;color:#1e40af">(학부모 신청)</span>':'';
+    activities.push({time:t, html:`<div class="item-card"><div class="item-card-title">${label} <span class="bdg bdg-ext">📅 연장 신청</span>${srcLabel}</div><div class="item-meta">🕐 ${e.requested_time||'-'} · ${toKSTDate(e.created_at)}</div></div>`});
   });
-  activities.sort((a,b) => b.time - a.time);
-  const recent = activities.slice(0, 5);
-  document.getElementById('recentList').innerHTML = recent.length
-    ? recent.map(a=>a.html).join('')
-    : '<div class="empty-st"><span class="empty-ic">📋</span>활동 내역이 없습니다</div>';
+  activities.sort((a,b)=>b.time-a.time);
+  document.getElementById('recentList').innerHTML = activities.length
+    ? activities.map(a=>a.html).join('')
+    : '<div class="empty-st"><span class="empty-ic">📋</span>최근 한 달 활동 내역이 없습니다</div>';
 }
 
-// ============================================================
-//  제출 이력 탭
-// ============================================================
+// ── 제출 이력 탭
 function renderSubmissions() {
   const el = document.getElementById('submissionList');
-  if (!_submissions.length) {
-    el.innerHTML = '<div class="empty-st"><span class="empty-ic">📚</span>제출 이력이 없습니다</div>'; return;
-  }
-  el.innerHTML = _submissions.map(s => {
+  if (!_submissions.length) { el.innerHTML='<div class="empty-st"><span class="empty-ic">📚</span>제출 이력이 없습니다</div>'; return; }
+  el.innerHTML = _submissions.map(s=>{
     const hw = _homeworks.find(h=>h.id===s.homework_id);
-    const label = hw ? `[${hw.subject}] ${hw.due_date}` : '숙제';
-    const clsObj = hw ? (hw.homework_classes||[]).find(c=>c.class_name===_student.class)||(hw.homework_classes||[])[0] : null;
-
-    let statusBadge = '';
-    let extraHtml = '';
-    if (s.rejection_status==='rejected') {
-      statusBadge = '<span class="bdg bdg-rej">❌ 반려</span>';
-      extraHtml = `<div style="background:#fee2e2;border-radius:8px;padding:8px 10px;margin-top:8px;font-size:12px;color:#991b1b">
-        <strong>반려 사유:</strong> ${s.rejection_reason||'사유 없음'}<br>
-        <span style="color:#b91c1c">선생님께 다시 제출해 주세요.</span>
-      </div>`;
-    } else if (s.rejection_status==='resubmitted') {
-      statusBadge = '<span class="bdg bdg-resub">🔄 재제출</span>';
-    } else if (s.reviewed) {
-      statusBadge = '<span class="bdg bdg-ok">✓ 확인 완료</span>';
-    } else if (s.submitted) {
-      statusBadge = '<span class="bdg bdg-wait">⏳ 확인 대기</span>';
+    const label = hw?`[${hw.subject}] ${hw.due_date}`:'숙제';
+    const clsObj = hw?(hw.homework_classes||[]).find(c=>c.class_name===_student.class)||(hw.homework_classes||[])[0]:null;
+    let statusBadge='', extraHtml='';
+    if(s.rejection_status==='rejected'){
+      statusBadge='<span class="bdg bdg-rej">❌ 반려</span>';
+      extraHtml=`<div style="background:#fee2e2;border-radius:8px;padding:8px 10px;margin-top:8px;font-size:12px;color:#991b1b"><strong>반려 사유:</strong> ${s.rejection_reason||'사유 없음'}<br><span style="color:#b91c1c">선생님께 다시 제출해 주세요.</span></div>`;
+    } else if(s.rejection_status==='resubmitted'){
+      statusBadge='<span class="bdg bdg-resub">🔄 재제출</span>';
+    } else if(s.reviewed){
+      statusBadge='<span class="bdg bdg-ok">✓ 확인 완료</span>';
+    } else if(s.submitted){
+      statusBadge='<span class="bdg bdg-wait">⏳ 확인 대기</span>';
     }
-
     const photoCount = (s.photo_urls||[]).length;
     return `<div class="item-card">
       <div class="item-card-title">${label} ${statusBadge}</div>
       <div class="item-meta">
-        ${clsObj ? `📖 ${clsObj.textbook||'-'}${clsObj.problem_count?` (${clsObj.problem_count}문제)`:''}` : ''}
-        ${clsObj ? `<br>📝 ${clsObj.content||'-'}` : ''}
+        ${clsObj?`📖 ${clsObj.textbook||'-'}${clsObj.problem_count?` (${clsObj.problem_count}문제)`:''}`:'' }
+        ${clsObj&&clsObj.content?`<br>📝 ${clsObj.content}`:''}
         <br>📸 사진 ${photoCount}장 · 제출 ${toKST(s.submitted_at)}
-        ${s.submit_memo ? `<br>💬 메모: ${s.submit_memo}` : ''}
-      </div>
-      ${extraHtml}
-    </div>`;
+        ${s.submit_memo?`<br>💬 메모: ${s.submit_memo}`:''}
+      </div>${extraHtml}</div>`;
   }).join('');
 }
 
-// ============================================================
-//  연장 신청 탭
-// ============================================================
+// ── 연장 신청 탭
 function renderExtensions() {
   const el = document.getElementById('extensionList');
-  if (!_extensions.length) {
-    el.innerHTML = '<div class="empty-st"><span class="empty-ic">📅</span>연장 신청 내역이 없습니다</div>'; return;
-  }
-  el.innerHTML = _extensions.map(e => {
+  if (!_extensions.length) { el.innerHTML='<div class="empty-st"><span class="empty-ic">📅</span>연장 신청 내역이 없습니다</div>'; return; }
+  el.innerHTML = _extensions.map(e=>{
     const hw = _homeworks.find(h=>h.id===e.homework_id);
-    const label = hw ? `[${hw.subject}] ${hw.due_date}` : '숙제';
+    const label = hw?`[${hw.subject}] ${hw.due_date}`:'숙제';
+    const srcBadge = e.source==='parent'?'<span style="background:#dbeafe;color:#1e40af;padding:1px 6px;border-radius:8px;font-size:11px;font-weight:700;margin-left:6px">학부모 신청</span>':'';
+    const statusBadge = e.status==='approved'?'<span class="bdg bdg-ok">✅ 승인</span>':e.status==='rejected'?'<span class="bdg bdg-rej">❌ 거절</span>':'<span class="bdg bdg-wait">⏳ 검토 중</span>';
     return `<div class="item-card">
-      <div class="item-card-title">${label} <span class="bdg bdg-ext">📅 연장 신청</span></div>
+      <div class="item-card-title">${label} ${statusBadge}${srcBadge}</div>
       <div class="item-meta">
         🕐 예정: <strong>${e.requested_time||'-'}</strong>
-        ${e.reason ? `<br>💬 사유: ${e.reason}` : ''}
+        ${e.reason?`<br>💬 사유: ${e.reason}`:''}
+        ${e.teacher_note?`<br>📝 선생님 메모: ${e.teacher_note}`:''}
         <br>📆 신청일: ${toKSTDate(e.created_at)}
-      </div>
-    </div>`;
+      </div></div>`;
   }).join('');
 }
 
-// ============================================================
-//  로딩
-// ============================================================
+// ── 연장 신청 폼
+function toggleExtForm() {
+  const form = document.getElementById('extForm');
+  const isShow = form.classList.toggle('show');
+  if (isShow) { populateExtHwSelect(); _parentExtPreset=''; document.querySelectorAll('.ext-preset-btn').forEach(b=>b.classList.remove('selected')); document.getElementById('extCustomBox').style.display='none'; document.getElementById('extReason').value=''; }
+}
+
+function populateExtHwSelect() {
+  const sel = document.getElementById('extHwSelect');
+  sel.innerHTML = '<option value="">숙제를 선택하세요</option>';
+  // 제출 완료된 것 제외, 반 필터
+  const subMap = {};
+  _submissions.forEach(s=>{ subMap[s.homework_id]=s; });
+  _homeworks.filter(h=>{
+    const cls=(h.homework_classes||[]).map(c=>c.class_name);
+    return !cls.length || cls.includes(_student.class);
+  }).forEach(hw=>{
+    const sub = subMap[hw.id];
+    if(sub && sub.submitted && sub.rejection_status!=='rejected') return;
+    const opt = document.createElement('option');
+    opt.value = hw.id;
+    opt.textContent = `[${hw.subject}] ${hw.due_date}`;
+    sel.appendChild(opt);
+  });
+}
+
+function parentSelectPreset(btn, val) {
+  _parentExtPreset = val;
+  document.querySelectorAll('.ext-preset-btn').forEach(b=>b.classList.remove('selected'));
+  btn.classList.add('selected');
+  document.getElementById('extCustomBox').style.display = val==='기타'?'block':'none';
+}
+
+async function submitParentExtension() {
+  const hwId = document.getElementById('extHwSelect').value;
+  const reason = document.getElementById('extReason').value.trim();
+  if (!hwId) { alert('숙제를 선택해주세요.'); return; }
+  if (!_parentExtPreset) { alert('언제까지 제출할지 선택해주세요.'); return; }
+  if (!reason) { alert('연장 사유를 입력해주세요.'); return; }
+  const extLabel = _parentExtPreset==='기타' ? document.getElementById('extCustom').value.trim() : _parentExtPreset;
+  if (!extLabel) { alert('언제까지인지 입력해주세요.'); return; }
+
+  const tomorrow = new Date(); tomorrow.setDate(tomorrow.getDate()+1);
+  const tomorrowStr = localToday().split('-').slice(0,2).join('-') + '-' + String(new Date(new Date().getTime()+86400000).getDate()).padStart(2,'0');
+  const reqUntil = ['내일 오후 2시','내일 등원 전','내일 숙제와 함께'].includes(_parentExtPreset)
+    ? (() => { const d=new Date(); d.setDate(d.getDate()+1); return d.toISOString().slice(0,10); })()
+    : new Date().toISOString().slice(0,10);
+
+  showLoading();
+  const { error } = await db.from('extension_requests').insert({
+    homework_id: hwId, student_id: _student.id,
+    requested_until: reqUntil, requested_time: extLabel, reason,
+    source: 'parent'
+  });
+  if (error) { hideLoading(); alert('오류: '+error.message); return; }
+
+  // 새로고침
+  const { data } = await db.from('extension_requests').select('*').eq('student_id',_student.id).order('id',{ascending:false});
+  _extensions = data || [];
+  hideLoading();
+  document.getElementById('extForm').classList.remove('show');
+  renderExtensions();
+  renderSummary();
+  alert('✅ 연장 신청이 선생님께 전달되었습니다!');
+}
+
+// ── 로딩
 function showLoading() { document.getElementById('loadingOverlay').classList.add('show'); }
 function hideLoading() { document.getElementById('loadingOverlay').classList.remove('show'); }
 
-// ============================================================
-//  Enter 키 로그인
-// ============================================================
-document.getElementById('loginPhone').addEventListener('keydown', e => { if(e.key==='Enter') doLogin(); });
-document.getElementById('loginName').addEventListener('keydown', e => { if(e.key==='Enter') doLogin(); });
+// ── Enter 키
+document.getElementById('loginPhone').addEventListener('keydown', e=>{ if(e.key==='Enter') doLogin(); });
+document.getElementById('loginName').addEventListener('keydown', e=>{ if(e.key==='Enter') doLogin(); });
 
-// ============================================================
-//  세션 복원 (새로고침 시 자동 로그인)
-// ============================================================
+// ── 세션 복원
 (async () => {
   const saved = sessionStorage.getItem('parentStudent');
-  if (saved) {
-    try {
-      _student = JSON.parse(saved);
-      await initApp();
-    } catch(e) { sessionStorage.removeItem('parentStudent'); }
-  }
+  if (saved) { try { _student=JSON.parse(saved); await initApp(); } catch(e) { sessionStorage.removeItem('parentStudent'); } }
 })();
 </script>
 </body>

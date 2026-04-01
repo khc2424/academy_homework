@@ -389,16 +389,21 @@ document.getElementById('nameSelect').addEventListener('change', function() {
 
 function updateHomeworkSelect(cls) {
   const hws = window._homeworks || [];
+  const mySubs = window._mySubmissions || {};
   const sel = document.getElementById('homeworkSelect');
   sel.innerHTML = '<option value="">숙제를 선택하세요</option>';
   hws.forEach(hw => {
     const clsObjs = hw.homework_classes || [];
     const clsNames = clsObjs.map(c => c.class_name);
     if (cls && clsNames.length && !clsNames.includes(cls)) return;
+    // 이미 제출 완료된 숙제는 숨김 (반려된 건 재제출을 위해 유지)
+    const sub = mySubs[hw.id];
+    if (sub && sub.submitted && sub.rejection_status !== 'rejected') return;
     const label = clsNames.length ? `[${clsNames.join('/')}] ` : '';
     const opt = document.createElement('option');
     opt.value = hw.id;
-    opt.textContent = `${label}${hw.subject} — 기한: ${hw.due_date}`;
+    const rejPrefix = (sub && sub.rejection_status === 'rejected') ? '❌ [반려] ' : '';
+    opt.textContent = `${rejPrefix}${label}${hw.subject} — 기한: ${hw.due_date}`;
     opt.dataset.hw = JSON.stringify(hw);
     sel.appendChild(opt);
   });
@@ -449,6 +454,9 @@ async function loadStudentSubmissions(stuId) {
     .eq('student_id', stuId);
   (data || []).forEach(s => { window._mySubmissions[s.homework_id] = s; });
   checkRejections();
+  // 제출 완료 숙제 필터링 + 반려 목록 반영
+  const cls = document.getElementById('classSelect').value;
+  updateHomeworkSelect(cls);
   // 선택된 숙제가 있으면 hwDetail도 업데이트
   const hwSel = document.getElementById('homeworkSelect');
   if (hwSel.value) hwSel.dispatchEvent(new Event('change'));
@@ -604,7 +612,8 @@ async function submitHomework() {
         : new Date().toISOString().slice(0,10);
       const { error: extErr } = await db.from('extension_requests').insert({
         homework_id: hwId, student_id: studentId,
-        requested_until: reqUntil, requested_time: extLabel, reason: extReason
+        requested_until: reqUntil, requested_time: extLabel, reason: extReason,
+        source: 'student'
       });
       if (extErr) throw extErr;
       setProgress(100, '완료!');

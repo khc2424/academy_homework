@@ -566,7 +566,6 @@ function showHWDetail(hwId) {
   const text = `▶ 교재 : ${tb}${probStr}\n⏭ ${ct}\n★ 기한 : ${dueFmt} ${timeStr}`;
   window._hwDetailText = text;
   document.getElementById('hwDetailBubble').textContent = text;
-  document.getElementById('hwDetailCopyBtn').textContent = '📋 카카오톡에 복사하기';
   document.getElementById('hwDetailModal').style.display = 'flex';
 }
 function closeHWDetail() { document.getElementById('hwDetailModal').style.display = 'none'; }

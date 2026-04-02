@@ -692,10 +692,18 @@ function renderDashboard() {
     });
   });
   document.getElementById('dMissing').textContent = missingCnt;
-  // Recent HW
+  // Recent HW — 오늘 기한 먼저, 그 다음 가까운 순
   const rwEl=document.getElementById('dashHW');
   if(!_homeworks.length){rwEl.innerHTML='<div class="empty-st"><span class="empty-ic">📭</span>숙제 없음</div>';}
-  else rwEl.innerHTML=_homeworks.slice(0,5).map(h=>`<div class="d-flex align-items-center gap-2 px-4 py-2" style="border-bottom:1px solid var(--gray-100)"><span style="background:#e0e7ff;color:#3730a3;padding:2px 8px;border-radius:12px;font-size:12px;font-weight:600">${h.subject}</span><span style="flex:1;font-size:13px">${hwCls(h).join('/')}</span>${getDueBadge(h.due_date)}<span style="font-size:12px;color:#999">${getSubRate(h.id)}%</span></div>`).join('');
+  else {
+    const tod=new Date().toISOString().slice(0,10);
+    const sortedHW=[..._homeworks].sort((a,b)=>{
+      if(a.due_date===tod&&b.due_date!==tod) return -1;
+      if(b.due_date===tod&&a.due_date!==tod) return 1;
+      return (a.due_date||'').localeCompare(b.due_date||'');
+    });
+    rwEl.innerHTML=sortedHW.slice(0,5).map(h=>`<div class="d-flex align-items-center gap-2 px-4 py-2" style="border-bottom:1px solid var(--gray-100)"><span style="background:#e0e7ff;color:#3730a3;padding:2px 8px;border-radius:12px;font-size:12px;font-weight:600">${h.subject}</span><span style="flex:1;font-size:13px">${hwCls(h).join('/')}</span>${getDueBadge(h.due_date)}<span style="font-size:12px;color:#999">${getSubRate(h.id)}%</span></div>`).join('');
+  }
   renderDashMissing();
   // 반별 제출률 차트 → activeDate 기준
   const colors=['rgba(79,70,229,.7)','rgba(16,185,129,.7)','rgba(245,158,11,.7)','rgba(239,68,68,.7)','rgba(139,92,246,.7)','rgba(236,72,153,.7)'];

@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>선생님 대시보드</title>
+  <title>김형철T 대시보드</title>
   <link href="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.3.0/css/bootstrap.min.css" rel="stylesheet">
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.0/chart.umd.min.js"></script>
@@ -133,7 +133,7 @@ function checkPw() {
 <div class="login-screen" id="loginScreen">
   <div class="login-box">
     <div style="font-size:40px;margin-bottom:16px">🔐</div>
-    <h5 style="font-weight:700;margin-bottom:6px">선생님 전용</h5>
+    <h5 style="font-weight:700;margin-bottom:6px">김형철T 대시보드</h5>
     <p style="font-size:13px;color:#888;margin-bottom:24px">비밀번호를 입력해주세요</p>
     <input type="password" class="fc" id="pwInput" placeholder="비밀번호" onkeydown="if(event.key==='Enter')checkPw()" style="margin-bottom:12px">
     <button class="btn-p" style="width:100%;padding:12px" onclick="checkPw()">로그인</button>
@@ -172,7 +172,7 @@ function checkPw() {
 <!-- Sidebar -->
 <div class="sidebar" id="sidebar">
   <div class="sidebar-brand">
-    <div class="sidebar-brand-text">🎓 숙제 관리<span>선생님 전용 대시보드</span></div>
+    <div class="sidebar-brand-text">🎓 숙제 관리<span>김형철T 대시보드</span></div>
     <button class="hamburger-btn" onclick="toggleSidebar()" title="메뉴 닫기">
       <span></span><span></span><span></span>
     </button>
@@ -188,6 +188,7 @@ function checkPw() {
     <button class="nav-btn" onclick="showPage('templates')">🔁 고정 숙제</button>
     <button class="nav-btn" onclick="showPage('students')">👥 학생 관리</button>
     <button class="nav-btn" onclick="showPage('daily')">📢 일일 미제출자</button>
+    <button class="nav-btn" onclick="showPage('weekend')">🌙 주말 10시 보고</button>
   </nav>
   <div style="position:absolute;bottom:16px;left:0;right:0;padding:0 8px">
     <a href="student.html" target="_blank" style="display:block;background:#FEE500;color:#3C1E1E;text-align:center;padding:10px;border-radius:8px;font-size:13px;font-weight:700;text-decoration:none">📱 학생 제출 페이지</a>
@@ -373,6 +374,42 @@ function checkPw() {
         <div class="card-c">
           <div class="card-h">📋 미제출자 상세</div>
           <div id="dailyDetail" style="padding:12px 16px;font-size:13px;color:#555;min-height:80px">
+            <div style="color:#aaa;text-align:center;padding:24px">메시지 생성 후 확인됩니다</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- WEEKEND 10PM REPORT (daily 페이지 안에 추가) -->
+  <div class="page" id="page-weekend">
+    <div class="page-title">🌙 주말 10시 보고</div>
+    <div class="page-sub">주말 기한 숙제의 연장완료 / 연락안됨 학생을 반별로 정리합니다</div>
+    <div class="d-flex gap-2 mb-3 align-items-center flex-wrap">
+      <input type="date" class="fc" id="weekendDate" style="width:180px">
+      <input type="text" class="fc" id="weekendTeacherName" placeholder="선생님 이름" style="width:160px" value="김형철">
+      <button class="btn-p" onclick="generateWeekendMsg()">📋 메시지 생성</button>
+      <button class="btn-o" onclick="copyWeekendMsg()">📄 복사</button>
+    </div>
+    <div class="row g-3">
+      <div class="col-md-6">
+        <div class="card-c">
+          <div class="card-h d-flex justify-content-between align-items-center">
+            <span>📨 카카오톡 미리보기</span>
+            <button class="btn-kakao" onclick="copyWeekendMsg()">📋 복사</button>
+          </div>
+          <div style="padding:16px">
+            <div class="kakao-prev" id="weekendKakaoPrev" style="min-height:120px">
+              <div style="font-size:12px;color:#555;margin-bottom:4px;font-weight:600">선생님</div>
+              <div class="kakao-bubble" id="weekendBubble" style="font-size:13px;line-height:2;min-height:60px;color:#aaa">날짜를 선택하고 메시지 생성을 눌러주세요</div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="col-md-6">
+        <div class="card-c">
+          <div class="card-h">📋 반별 상세</div>
+          <div id="weekendDetail" style="padding:12px 16px;font-size:13px;color:#555;min-height:80px">
             <div style="color:#aaa;text-align:center;padding:24px">메시지 생성 후 확인됩니다</div>
           </div>
         </div>
@@ -580,6 +617,17 @@ function showPage(name) {
   if(name==='daily') {
     const inp = document.getElementById('dailyDate');
     if(!inp.value) inp.value = new Date().toISOString().slice(0,10);
+  }
+  if(name==='weekend') {
+    const inp = document.getElementById('weekendDate');
+    if(!inp.value) inp.value = new Date().toISOString().slice(0,10);
+    // 선생님 이름 localStorage 복원
+    const saved = localStorage.getItem('weekendTeacherName');
+    if(saved) document.getElementById('weekendTeacherName').value = saved;
+    // 선생님 이름 변경 시 저장
+    document.getElementById('weekendTeacherName').onchange = function() {
+      localStorage.setItem('weekendTeacherName', this.value);
+    };
   }
 }
 
@@ -1833,6 +1881,86 @@ async function generateDailyMsg() {
 
 function copyDailyMsg() {
   const msg = window._dailyMsg;
+  if(!msg) { toast('먼저 메시지를 생성해주세요','info'); return; }
+  navigator.clipboard.writeText(msg).then(()=>toast('클립보드에 복사되었습니다!'));
+}
+
+// ---- WEEKEND 10PM REPORT ----
+async function generateWeekendMsg() {
+  const dateStr = document.getElementById('weekendDate').value;
+  if(!dateStr) { toast('날짜를 선택해주세요','danger'); return; }
+
+  await loadSubmissions();
+  if(!_extensions.length) await loadExtensions();
+
+  const teacherName = (document.getElementById('weekendTeacherName').value.trim() || '선생님') + 'T';
+  const dateHWs = _homeworks.filter(h => h.due_date === dateStr);
+  const classes = getClasses();
+
+  // 반별 approved/pending 연장 학생 목록 (homework_id별)
+  const extApproved = {}; // stuId_hwId → true
+  const extPending  = {}; // stuId_hwId → true
+  _extensions.forEach(e => {
+    if(e.status==='approved') extApproved[`${e.student_id}_${e.homework_id}`] = true;
+    if(e.status==='pending')  extPending[`${e.student_id}_${e.homework_id}`] = true;
+  });
+
+  let msg = `${teacherName}\n`;
+  let detailHtml = `<div style="font-weight:700;color:var(--primary);margin-bottom:10px">📅 ${fmtDailyDate(dateStr)} 기준</div>`;
+
+  classes.forEach(cls => {
+    const classHWs = dateHWs.filter(h => hwCls(h).length===0 || hwCls(h).includes(cls));
+    if(!classHWs.length) return;
+
+    const classStu = _students.filter(s => s.class === cls);
+    const extended = [], noContact = [];
+
+    classStu.forEach(stu => {
+      // 이 반의 숙제 중 하나라도 미제출인 경우만 처리
+      const hasMissing = classHWs.some(hw => {
+        const sub = _submissions[hw.id]||{};
+        return !sub[stu.id]?.submitted || sub[stu.id]?.rejection_status==='rejected';
+      });
+      if(!hasMissing) return;
+
+      // 연장 여부 확인 (해당 날짜 숙제 중 하나라도)
+      const hasExt = classHWs.some(hw =>
+        extApproved[`${stu.id}_${hw.id}`] || extPending[`${stu.id}_${hw.id}`]
+      );
+      if(hasExt) extended.push(stu.name);
+      else noContact.push(stu.name);
+    });
+
+    const extStr = extended.length ? extended.join(', ') : 'x';
+    const noStr  = noContact.length ? noContact.join(', ') : 'x';
+
+    msg += `${cls}\n연장완료 - ${extStr}\n연락안됨 - ${noStr}\n`;
+
+    // 상세 패널
+    detailHtml += `
+      <div style="background:#f9fafb;border-radius:10px;padding:10px 14px;margin-bottom:8px">
+        <div style="font-weight:700;font-size:13px;color:var(--gray-800);margin-bottom:6px">📚 ${cls}</div>
+        <div style="font-size:12px;margin-bottom:3px">
+          <span style="background:#dcfce7;color:#166534;padding:2px 8px;border-radius:12px;font-weight:600;font-size:11px">연장완료</span>
+          &nbsp;${extended.length ? extended.map(n=>`<span style="background:#e0fce7;color:#166534;padding:2px 8px;border-radius:20px;font-size:12px;font-weight:600;margin:2px;display:inline-block">${n}</span>`).join('') : '<span style="color:#aaa">없음</span>'}
+        </div>
+        <div style="font-size:12px">
+          <span style="background:#fee2e2;color:#991b1b;padding:2px 8px;border-radius:12px;font-weight:600;font-size:11px">연락안됨</span>
+          &nbsp;${noContact.length ? noContact.map(n=>`<span style="background:#fee2e2;color:#991b1b;padding:2px 8px;border-radius:20px;font-size:12px;font-weight:600;margin:2px;display:inline-block">${n}</span>`).join('') : '<span style="color:#aaa">없음</span>'}
+        </div>
+      </div>`;
+  });
+
+  window._weekendMsg = msg;
+  const bubble = document.getElementById('weekendBubble');
+  bubble.style.color = '';
+  bubble.textContent = msg;
+  document.getElementById('weekendDetail').innerHTML = detailHtml || '<div style="color:#10b981;text-align:center;padding:24px;font-weight:700">🎉 미제출자 없음!</div>';
+  toast('주말 보고 메시지가 생성되었습니다');
+}
+
+function copyWeekendMsg() {
+  const msg = window._weekendMsg;
   if(!msg) { toast('먼저 메시지를 생성해주세요','info'); return; }
   navigator.clipboard.writeText(msg).then(()=>toast('클립보드에 복사되었습니다!'));
 }

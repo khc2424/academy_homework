@@ -19,11 +19,11 @@
     }
     body.dark {
       --primary:#818cf8; --primary-light:#1e1b4b;
-      --gray-50:#161b27; --gray-100:#1e2536; --gray-200:#2a3347;
+      --gray-50:#1a2235; --gray-100:#222d42; --gray-200:#2e3d57;
       --gray-600:#94a3b8; --gray-800:#f1f5f9;
-      --bg:#0f1623; --card:#1a2235; --border:#2a3347;
+      --bg:#111827; --card:#1e293b; --border:#334155;
       --text:#f1f5f9; --text-sub:#94a3b8; --text-muted:#64748b;
-      --input-bg:#1e2536;
+      --input-bg:#1e293b;
     }
     body { background:var(--bg); font-family:'Segoe UI','Malgun Gothic',sans-serif; color:var(--text); transition:background .2s,color .2s; }
     .sidebar { width:220px; min-height:100vh; background:var(--card); border-right:1px solid var(--border); position:fixed; top:0; left:0; z-index:100; transition:width .25s ease, box-shadow .25s ease, background .2s; overflow:hidden; }
@@ -138,7 +138,9 @@
     body.dark .page-sub { color:#64748b; }
     body.dark canvas { filter:brightness(.9) contrast(1.05); }
     body.dark .lb-zoom-hint { color:rgba(255,255,255,.4); }
-    body.dark .stat-card { box-shadow: 0 1px 3px rgba(0,0,0,.4); }
+    body.dark .stat-card { box-shadow:0 2px 8px rgba(0,0,0,.4); }
+    body.dark .card-c { box-shadow:0 2px 8px rgba(0,0,0,.35); border-color:#334155 !important; }
+    body.dark .hw-card { box-shadow:0 2px 12px rgba(0,0,0,.45) !important; border-color:#334155 !important; background:#1e293b !important; }
     body.dark .nav-btn:hover { background:#1e2536; }
     body.dark .nav-btn.active { background:#1e2536; color:#818cf8; }
     body.dark .modal-ov { background:rgba(0,0,0,.6); }
@@ -1266,7 +1268,7 @@ function renderHomework() {
   el.innerHTML='<div class="row g-3">'+list.map(h=>{
     const cls=hwCls(h); const rate=getSubRate(h.id);
     const sc=subClass(h.subject).split('|');
-    return `<div class="col-md-6 col-lg-4"><div style="background:var(--card);border:1px solid var(--border);border-radius:12px;padding:16px;color:var(--text)"
+    return `<div class="col-md-6 col-lg-4"><div class="hw-card" style="background:var(--card);border:1px solid var(--border);border-radius:12px;padding:16px;color:var(--text);box-shadow:0 1px 4px rgba(0,0,0,.08)">
       <div class="d-flex justify-content-between mb-2"><span style="background:${sc[0]};color:${sc[1]};padding:2px 9px;border-radius:12px;font-size:12px;font-weight:600">${h.subject}</span>${getDueBadge(h.due_date)}</div>
       ${(h.homework_classes||[]).map(c=>{const ctd=(c.content||'').replace(/(\d+)\s*~\s*(\d+)\s*번/,'$1~$2p');return`<div style="font-size:12px;color:var(--text-sub);margin-bottom:3px">📖 ${c.class_name}: ${c.textbook||''}${c.problem_count?` ${c.problem_count}문제`:''}${ctd?` — ${ctd}`:''}</div>`;}).join('')}
       <div style="font-size:12px;color:var(--text-muted);margin:8px 0">📅 공지: ${h.assign_date} | 기한: ${h.due_date}</div>

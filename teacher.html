@@ -203,7 +203,7 @@ function checkPw() {
     <div class="page-sub">전체 현황을 한눈에 확인하세요</div>
     <div class="row g-3 mb-4">
       <div class="col-md-2"><div class="stat-card"><div class="d-flex align-items-center gap-3"><div class="stat-icon" style="background:#e0e7ff">👥</div><div><div class="stat-v" id="dTotalStu">-</div><div class="stat-l">전체 학생</div></div></div></div></div>
-      <div class="col-md-2"><div class="stat-card"><div class="d-flex align-items-center gap-3"><div class="stat-icon" style="background:#fce7f3">📋</div><div><div class="stat-v" id="dSubmitRate">-</div><div class="stat-l">평균 제출률</div></div></div></div></div>
+      <div class="col-md-2"><div class="stat-card"><div class="d-flex align-items-center gap-3"><div class="stat-icon" style="background:#fce7f3">📋</div><div><div class="stat-v" id="dSubmitRate">-</div><div class="stat-l">최근7일 제출률</div></div></div></div></div>
       <div class="col-md-2"><div class="stat-card"><div class="d-flex align-items-center gap-3"><div class="stat-icon" style="background:#fef9c3">📸</div><div><div class="stat-v" id="dNewPhotos">-</div><div class="stat-l">미확인 사진</div></div></div></div></div>
       <div class="col-md-2"><div class="stat-card" style="cursor:pointer" onclick="showPage('extensions')"><div class="d-flex align-items-center gap-3"><div class="stat-icon" style="background:#fff0f0">📅</div><div><div class="stat-v" id="dPendingExt" style="color:var(--danger)">-</div><div class="stat-l">연장 신청</div></div></div></div></div>
       <div class="col-md-2"><div class="stat-card" style="cursor:pointer" onclick="showPage('photos')"><div class="d-flex align-items-center gap-3"><div class="stat-icon" style="background:#f0fdf4">✅</div><div><div class="stat-v" id="dTotalSub" style="color:var(--success)">-</div><div class="stat-l">제출 인원</div></div></div></div></div>
@@ -222,7 +222,7 @@ function checkPw() {
         </div>
         <div id="dashMissing" style="padding:4px 0;max-height:300px;overflow-y:auto"></div>
       </div></div>
-      <div class="col-md-6"><div class="card-c"><div class="card-h">📊 반별 제출률</div><div style="padding:16px"><canvas id="chartCls" height="220"></canvas></div></div></div>
+      <div class="col-md-6"><div class="card-c"><div class="card-h">📊 반별 제출률 <span style="font-size:11px;color:#aaa;font-weight:400">(오늘/어제 기준)</span></div><div style="padding:16px"><canvas id="chartCls" height="220"></canvas></div></div></div>
       <div class="col-md-6"><div class="card-c"><div class="card-h">📅 최근 7일 반별 제출 현황</div><div style="padding:16px"><canvas id="chartWeek" height="220"></canvas></div></div></div>
     </div>
   </div>
@@ -650,18 +650,40 @@ function showMissingPopup() {
 
 function renderDashboard() {
   document.getElementById('dTotalStu').textContent = _students.length;
-  const pendingExt = _extensions.filter(e=>e.status==='pending').length;
-  document.getElementById('dPendingExt').textContent = pendingExt;
-  let totalSub = 0;
-  Object.values(_submissions).forEach(h => Object.values(h).forEach(s => { if(s.submitted) totalSub++; }));
-  document.getElementById('dTotalSub').textContent = totalSub + '건';
   const classes = getClasses();
-  const clsRates = classes.map(c => getClassRate(c));
-  const avgRate = clsRates.length ? Math.round(clsRates.reduce((a,b)=>a+b,0)/clsRates.length) : 0;
-  document.getElementById('dSubmitRate').textContent = avgRate + '%';
-  // 미제출인원 (active date 기준)
+
+  // active date (5:30 전=어제, 이후=오늘)
   const activeDate = getMissingActiveDate();
   const activeHWs = _homeworks.filter(h => h.due_date === activeDate);
+  const activeHWIds = new Set(activeHWs.map(h=>h.id));
+
+  // 연장신청 → activeDate 기준
+  const pendingExt = _extensions.filter(e=>e.status==='pending' && activeHWIds.has(e.homework_id)).length;
+  document.getElementById('dPendingExt').textContent = pendingExt;
+
+  // 제출인원 → activeDate 기준
+  let totalSub = 0;
+  activeHWs.forEach(hw => {
+    const sub = _submissions[hw.id] || {};
+    (hw.homework_classes||[]).forEach(clsObj => {
+      _students.filter(s=>s.class===clsObj.class_name).forEach(s=>{ if(sub[s.id]?.submitted) totalSub++; });
+    });
+  });
+  document.getElementById('dTotalSub').textContent = totalSub + '건';
+
+  // 평균 제출률 → 최근 7일 기준
+  const sevenAgo = new Date(Date.now()-7*86400000).toISOString().slice(0,10);
+  const recentHWs = _homeworks.filter(h=>h.due_date>=sevenAgo);
+  let r7Sub=0, r7Total=0;
+  recentHWs.forEach(hw=>{
+    const relStu = hwCls(hw).length ? _students.filter(s=>hwCls(hw).includes(s.class)) : _students;
+    const sub = _submissions[hw.id]||{};
+    relStu.forEach(s=>{ r7Total++; if(sub[s.id]?.submitted) r7Sub++; });
+  });
+  const avgRate = r7Total ? Math.round(r7Sub/r7Total*100) : 0;
+  document.getElementById('dSubmitRate').textContent = avgRate + '%';
+
+  // 미제출인원 → activeDate 기준
   let missingCnt = 0;
   activeHWs.forEach(hw => {
     const sub = _submissions[hw.id] || {};
@@ -675,9 +697,17 @@ function renderDashboard() {
   if(!_homeworks.length){rwEl.innerHTML='<div class="empty-st"><span class="empty-ic">📭</span>숙제 없음</div>';}
   else rwEl.innerHTML=_homeworks.slice(0,5).map(h=>`<div class="d-flex align-items-center gap-2 px-4 py-2" style="border-bottom:1px solid var(--gray-100)"><span style="background:#e0e7ff;color:#3730a3;padding:2px 8px;border-radius:12px;font-size:12px;font-weight:600">${h.subject}</span><span style="flex:1;font-size:13px">${hwCls(h).join('/')}</span>${getDueBadge(h.due_date)}<span style="font-size:12px;color:#999">${getSubRate(h.id)}%</span></div>`).join('');
   renderDashMissing();
-  // 반별 제출률 차트
+  // 반별 제출률 차트 → activeDate 기준
   const colors=['rgba(79,70,229,.7)','rgba(16,185,129,.7)','rgba(245,158,11,.7)','rgba(239,68,68,.7)','rgba(139,92,246,.7)','rgba(236,72,153,.7)'];
-  makeChart('chartCls',{type:'bar',data:{labels:classes.map(c=>c+'반'),datasets:[{label:'제출률(%)',data:clsRates,backgroundColor:classes.map((_,i)=>colors[i%colors.length]),borderRadius:6,borderSkipped:false}]},options:{plugins:{legend:{display:false}},scales:{y:{max:100,ticks:{callback:v=>v+'%'}}},responsive:true}});
+  const activeCls = classes.map(cls=>{
+    const cHWs=activeHWs.filter(h=>hwCls(h).length===0||hwCls(h).includes(cls));
+    const cStu=_students.filter(s=>s.class===cls);
+    if(!cHWs.length||!cStu.length) return 0;
+    let sub=0,tot=cStu.length*cHWs.length;
+    cHWs.forEach(hw=>{const s=_submissions[hw.id]||{};cStu.forEach(st=>{if(s[st.id]?.submitted)sub++;});});
+    return Math.round(sub/tot*100);
+  });
+  makeChart('chartCls',{type:'bar',data:{labels:classes.map(c=>c+'반'),datasets:[{label:'제출률(%)',data:activeCls,backgroundColor:classes.map((_,i)=>colors[i%colors.length]),borderRadius:6,borderSkipped:false}]},options:{plugins:{legend:{display:false}},scales:{y:{min:0,max:100,ticks:{callback:v=>v+'%'}}},responsive:true}});
   // 최근 7일 반별 일별 차트
   const days=[]; const dayLabels=[];
   for(let i=6;i>=0;i--){const d=new Date(Date.now()-i*86400000);days.push(d.toISOString().slice(0,10));dayLabels.push(`${d.getMonth()+1}/${d.getDate()}(${DAYS[d.getDay()]})`);}
@@ -1000,7 +1030,7 @@ function loadTemplateForCls(panelId) {
   if (!due) { toast('먼저 제출 기한을 선택하세요', 'info'); return; }
   const dayNum = new Date(due+'T00:00:00').getDay();
   const t = _templates[`${cls}_${dayNum}`];
-  if (!t || (!t.textbook && !t.content)) { toast(`${cls}반의 해당 요일 고정 숙제가 없습니다`, 'info'); return; }
+  if (!t || (!t.textbook && !t.content && !t.due_time && !t.problem_count)) { toast(`${cls}반의 해당 요일 고정 숙제가 없습니다`, 'info'); return; }
   if(t.textbook) panel.querySelector('.cp-t').value = t.textbook;
   if(t.problem_count) panel.querySelector('.cp-p').value = t.problem_count;
   if(t.content) {

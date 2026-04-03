@@ -147,6 +147,19 @@
     body.dark .sub-badge { background:#1e2536; color:#94a3b8; }
     body.dark .prog { background:#2a3347; }
     body.dark input[type=checkbox] { accent-color:#818cf8; }
+
+    /* ===== MOBILE ===== */
+    .sidebar-overlay { display:none; position:fixed; inset:0; background:rgba(0,0,0,.45); z-index:99; }
+    .sidebar-overlay.show { display:block; }
+    @media (max-width:768px) {
+      .sidebar { transform:translateX(-220px); width:220px !important; transition:transform .25s ease, box-shadow .25s ease, background .2s; }
+      .sidebar.open { transform:translateX(0); box-shadow:4px 0 24px rgba(0,0,0,.35); }
+      .sidebar.collapsed { transform:translateX(-220px); }
+      .main { margin-left:0 !important; padding:14px 12px !important; }
+      .main.expanded { margin-left:0 !important; padding-left:12px !important; }
+      .sidebar-toggle-ext { display:flex !important; }
+      .kakao-bubble { max-width:100% !important; }
+    }
   </style>
 </head>
 <body>
@@ -200,6 +213,9 @@ function checkPw() {
 
 <!-- Toast -->
 <div class="toast-c" id="toastC"></div>
+
+<!-- 모바일 사이드바 백드롭 오버레이 -->
+<div class="sidebar-overlay" id="sidebarOverlay" onclick="closeSidebar()"></div>
 
 <!-- 사이드바 닫혔을 때 보이는 외부 토글 버튼 -->
 <button class="sidebar-toggle-ext" id="sidebarToggleExt" onclick="toggleSidebar()">
@@ -637,14 +653,40 @@ function toggleDark() {
 })();
 
 // ---- SIDEBAR TOGGLE ----
+function isMobile() { return window.innerWidth <= 768; }
+
 function toggleSidebar() {
-  const sb = document.getElementById('sidebar');
-  const main = document.querySelector('.main');
-  const extBtn = document.getElementById('sidebarToggleExt');
-  const collapsed = sb.classList.toggle('collapsed');
-  main.classList.toggle('expanded', collapsed);
-  extBtn.style.display = collapsed ? 'flex' : 'none';
+  if (isMobile()) {
+    const sb = document.getElementById('sidebar');
+    const overlay = document.getElementById('sidebarOverlay');
+    const open = sb.classList.toggle('open');
+    sb.classList.toggle('collapsed', !open);
+    if (overlay) overlay.classList.toggle('show', open);
+  } else {
+    const sb = document.getElementById('sidebar');
+    const main = document.querySelector('.main');
+    const extBtn = document.getElementById('sidebarToggleExt');
+    const collapsed = sb.classList.toggle('collapsed');
+    main.classList.toggle('expanded', collapsed);
+    extBtn.style.display = collapsed ? 'flex' : 'none';
+  }
 }
+
+function closeSidebar() {
+  const sb = document.getElementById('sidebar');
+  const overlay = document.getElementById('sidebarOverlay');
+  sb.classList.remove('open');
+  sb.classList.add('collapsed');
+  if (overlay) overlay.classList.remove('show');
+}
+
+// 모바일이면 기본으로 사이드바 닫힌 상태로 시작
+(function initSidebarMobile() {
+  if (isMobile()) {
+    const sb = document.getElementById('sidebar');
+    if (sb) { sb.classList.add('collapsed'); sb.classList.remove('open'); }
+  }
+})();
 
 function getDueBadge(d){ if(!d)return ''; const due=new Date(d+'T00:00:00');const now=new Date();now.setHours(0,0,0,0);const diff=Math.ceil((due-now)/86400000); if(diff<0)return`<span style="background:#fee2e2;color:#991b1b;padding:2px 8px;border-radius:20px;font-size:12px">마감초과</span>`; if(diff===0)return`<span style="background:#fee2e2;color:#991b1b;padding:2px 8px;border-radius:20px;font-size:12px;font-weight:700">D-DAY</span>`; if(diff<=3)return`<span style="background:#fef3c7;color:#92400e;padding:2px 8px;border-radius:20px;font-size:12px">D-${diff}</span>`; return`<span style="background:#dcfce7;color:#166534;padding:2px 8px;border-radius:20px;font-size:12px">D-${diff}</span>`; }
 
@@ -656,6 +698,7 @@ function showPage(name) {
   document.querySelectorAll('.nav-btn').forEach(b=>b.classList.remove('active'));
   document.getElementById('page-'+name).classList.add('active');
   document.querySelectorAll('.nav-btn').forEach(b=>{if(b.getAttribute('onclick')?.includes("'"+name+"'"))b.classList.add('active');});
+  if (isMobile()) closeSidebar();
   if(name==='dashboard') { loadSubmissions().then(()=>{ renderDashboard(); }); }
   if(name==='photos') renderPhotos();
   if(name==='homework') renderHomework();
@@ -668,7 +711,10 @@ function showPage(name) {
   if(name==='templates') loadTemplates();
   if(name==='daily') {
     const inp = document.getElementById('dailyDate');
-    if(!inp.value) inp.value = new Date().toISOString().slice(0,10);
+    if(!inp.value) {
+      const yd = new Date(); yd.setDate(yd.getDate()-1);
+      inp.value = yd.toISOString().slice(0,10);
+    }
   }
   if(name==='weekend') {
     const inp = document.getElementById('weekendDate');
@@ -1554,6 +1600,10 @@ function renderExtensions() {
             <div class="d-flex gap-1">
               <button class="btn-p" style="font-size:12px;padding:5px 10px;background:#10b981" onclick="handleExt('${e.id}','approved')">✅ 승인</button>
               <button class="btn-o" style="font-size:12px;padding:5px 10px;color:var(--danger)" onclick="handleExt('${e.id}','rejected')">❌ 거절</button>
+            </div>`:e.status==='approved'?`
+            <div class="d-flex gap-1 align-items-center">
+              <span style="color:var(--text-muted);font-size:12px">처리완료</span>
+              <button class="btn-o" style="font-size:11px;padding:3px 8px;color:var(--danger);border-color:var(--danger)" onclick="rejectApproved('${e.id}')">↩ 반려로 변경</button>
             </div>`:'<span style="color:var(--text-muted);font-size:12px">처리완료</span>'}
         </td>
       </tr>`;
@@ -1565,6 +1615,16 @@ async function handleExt(id, status) {
   const { error } = await db.from('extension_requests').update({ status, teacher_note: note||null }).eq('id', id);
   if (error) { toast('오류: '+error.message,'danger'); return; }
   toast(status==='approved'?'✅ 승인되었습니다':'❌ 거절되었습니다', status==='approved'?'success':'info');
+  await loadExtensions();
+  renderExtensions();
+}
+
+async function rejectApproved(id) {
+  if (!confirm('승인을 취소하고 반려 처리하시겠습니까?')) return;
+  const note = prompt('반려 사유를 입력하세요 (선택):');
+  const { error } = await db.from('extension_requests').update({ status:'rejected', teacher_note: note||null }).eq('id', id);
+  if (error) { toast('오류: '+error.message,'danger'); return; }
+  toast('↩ 반려 처리되었습니다', 'info');
   await loadExtensions();
   renderExtensions();
 }
@@ -1847,11 +1907,11 @@ async function generateDailyMsg() {
   // 날짜 포맷
   const dateLabel = fmtDailyDate(dateStr);
 
-  // 연장 신청 목록 (approved or pending) → 이유 표시용
-  const extMap = {}; // "stuId_hwId" → reason
+  // 연장 신청 목록 (approved or pending) → 학생이 선택한 시간 옵션 표시
+  const extMap = {}; // "stuId_hwId" → "내일 등원 전" 등 선택값
   _extensions.forEach(e => {
     if(e.status==='approved'||e.status==='pending') {
-      extMap[`${e.student_id}_${e.homework_id}`] = e.reason||'';
+      extMap[`${e.student_id}_${e.homework_id}`] = e.requested_time||'';
     }
   });
 
@@ -1888,7 +1948,7 @@ async function generateDailyMsg() {
     if(info.noHW) {
       msg += `${cls} - 숙제없음\n`;
     } else if(info.missing.length===0) {
-      msg += `${cls} - 전원완료✅\n`;
+      msg += `${cls} - 전원완료\n`;
     } else {
       const names = info.missing.map(s => s.reason ? `${s.name}(${s.reason})` : s.name).join(', ');
       msg += `${cls} - ${names}\n`;

@@ -1954,8 +1954,6 @@ async function generateDailyMsg() {
   if(!_extensions.length) await loadExtensions();
 
   // ── 날짜 계산 ──
-  const reportCutoff = new Date(dateStr + 'T15:00:00');       // 보고서 날짜 오후 3시
-
   const hwDay = new Date(dateStr+'T00:00:00'); hwDay.setDate(hwDay.getDate()-1);
   const hwDayStr = hwDay.toISOString().slice(0,10);           // 기준 숙제 날짜 (전날)
 
@@ -1977,7 +1975,9 @@ async function generateDailyMsg() {
       extMap[`${e.student_id}_${e.homework_id}`] = e.requested_time||'';
   });
 
-  // ── 미제출자 계산: cutoff 이전 제출만 "정시 제출"로 인정 ──
+  // ── 미제출자 계산 ──
+  // cutoff 없으면: 현재 기준 미제출 그대로 (실시간)
+  // cutoff 있으면: cutoff 이전에 제출한 학생만 제외 (이후 제출·미제출 모두 포함)
   function getMissing(hwList, cutoff) {
     const clsMap = {};
     getClasses().forEach(cls => { clsMap[cls] = { noHW: true, missing: [] }; });
@@ -1988,9 +1988,17 @@ async function generateDailyMsg() {
         clsMap[cls].noHW = false;
         _students.filter(s=>s.class===cls).forEach(s => {
           const sub = (_submissions[hw.id]||{})[s.id];
-          const submittedAt = sub?.submitted_at ? new Date(sub.submitted_at) : null;
-          const onTime = sub?.submitted && submittedAt && submittedAt <= cutoff && sub.rejection_status !== 'rejected';
-          if (onTime) return; // 마감 전 제출 → 제외
+          let isMissing;
+          if (cutoff) {
+            // cutoff 기준: 그 시각 이전에 정상 제출한 학생만 제외
+            const submittedAt = sub?.submitted_at ? new Date(sub.submitted_at) : null;
+            const onTime = sub?.submitted && submittedAt && submittedAt <= cutoff && sub.rejection_status !== 'rejected';
+            isMissing = !onTime;
+          } else {
+            // 실시간: 현재 미제출 여부만 확인
+            isMissing = !sub?.submitted || sub.rejection_status === 'rejected';
+          }
+          if (!isMissing) return;
           if (!clsMap[cls].missing.find(m=>m.id===s.id))
             clsMap[cls].missing.push({ id: s.id, name: s.name, reason: extMap[`${s.id}_${hw.id}`]||'' });
         });
@@ -1999,7 +2007,8 @@ async function generateDailyMsg() {
     return clsMap;
   }
 
-  const todayMap = getMissing(todayHWs, reportCutoff);
+  // 메인 섹션: cutoff 없이 실시간 기준
+  const todayMap = getMissing(todayHWs, null);
 
   // ── 오늘 미제출자 메시지 ──
   let msg = `[${dateLabel} 미제출자]\n`;

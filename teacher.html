@@ -1955,16 +1955,27 @@ async function generateDailyMsg() {
     }
   });
 
-  // 전일 미제출자 섹션
-  const prevMissingLines = [];
-  classes.forEach(cls => {
-    const info = prevMap[cls];
-    if(!info || info.noHW || info.missing.length===0) return;
-    const names = info.missing.map(s => s.name).join(', ');
-    prevMissingLines.push(`${cls} - ${names}`);
+  // 전일 미제출자 섹션 (연장 신청 학생 기준: 제출 완료면 "완료", 미제출이면 선택한 시간)
+  const prevExtEntries = []; // { name, cls, label }
+  _extensions.forEach(e => {
+    if(e.status !== 'approved' && e.status !== 'pending') return;
+    const hw = _homeworks.find(h => h.id === e.homework_id);
+    if(!hw || hw.due_date >= dateStr) return; // 선택 날짜 이상 제외
+    const sub = _submissions[e.homework_id]?.[e.student_id];
+    const submitted = sub?.submitted && sub.rejection_status !== 'rejected';
+    const stu = _students.find(s => s.id === e.student_id);
+    if(!stu) return;
+    // 중복 방지 (같은 학생이 여러 연장 신청한 경우 최신 우선)
+    if(!prevExtEntries.find(x => x.name === stu.name && x.cls === stu.class)) {
+      prevExtEntries.push({ name: stu.name, cls: stu.class, label: submitted ? '완료' : (e.requested_time || '미제출') });
+    }
   });
-  if(prevMissingLines.length) {
-    msg += `\n[전일 미제출자]\n` + prevMissingLines.join('\n');
+  if(prevExtEntries.length) {
+    // 반별로 모아서 한 줄씩
+    const prevByClass = {};
+    prevExtEntries.forEach(e => { (prevByClass[e.cls]||(prevByClass[e.cls]=[])).push(`${e.name}(${e.label})`); });
+    const prevLines = classes.filter(c=>prevByClass[c]).map(c=>prevByClass[c].join(', '));
+    msg += `\n전일미제출자\n` + prevLines.join('\n');
   }
 
   // 미리보기 업데이트

@@ -717,10 +717,7 @@ function showPage(name) {
   if(name==='templates') loadTemplates();
   if(name==='daily') {
     const inp = document.getElementById('dailyDate');
-    if(!inp.value) {
-      const yd = new Date(); yd.setDate(yd.getDate()-1);
-      inp.value = yd.toISOString().slice(0,10);
-    }
+    if(!inp.value) inp.value = new Date().toISOString().slice(0,10);
   }
   if(name==='weekend') {
     const inp = document.getElementById('weekendDate');
@@ -1946,105 +1943,106 @@ function fmtDailyDate(dateStr) {
 }
 
 async function generateDailyMsg() {
+  // dateStr = 보고서 날짜 (예: 4/3)
+  // 기준 숙제   = 전날 (4/2) 기한 숙제
+  // 미제출 마감 = 보고서 날짜 오후 3시 (4/3 15:00)
+  // 전일미제출자 = 이틀 전(4/1) 숙제, 어제(4/2) 오후 3시까지 미제출했던 학생 현황
   const dateStr = document.getElementById('dailyDate').value;
   if(!dateStr) { toast('날짜를 선택해주세요','danger'); return; }
 
-  // 최신 데이터 로드
   await loadSubmissions();
   if(!_extensions.length) await loadExtensions();
 
-  // 해당 날짜 기한 숙제 / 전일까지 기한 숙제
-  const todayHWs = _homeworks.filter(h => h.due_date === dateStr);
-  const prevHWs  = _homeworks.filter(h => h.due_date < dateStr);
+  // ── 날짜 계산 ──
+  const reportCutoff = new Date(dateStr + 'T15:00:00');       // 보고서 날짜 오후 3시
 
-  // 날짜 포맷
+  const hwDay = new Date(dateStr+'T00:00:00'); hwDay.setDate(hwDay.getDate()-1);
+  const hwDayStr = hwDay.toISOString().slice(0,10);           // 기준 숙제 날짜 (전날)
+
+  const prevDay2 = new Date(hwDay); prevDay2.setDate(prevDay2.getDate()-1);
+  const prevDay2Str = prevDay2.toISOString().slice(0,10);     // 전일미제출자 숙제 날짜 (이틀 전)
+  const prevCutoff = new Date(hwDayStr + 'T15:00:00');        // 어제 오후 3시 (전일 기준)
+
+  // ── 숙제 목록 ──
+  const todayHWs = _homeworks.filter(h => h.due_date === hwDayStr);     // 기준 숙제 (전날)
+  const prevDayHWs = _homeworks.filter(h => h.due_date === prevDay2Str); // 전일미제출자용 (이틀 전)
+
   const dateLabel = fmtDailyDate(dateStr);
+  const classes = getClasses();
 
-  // 연장 신청 목록 (approved or pending) → 학생이 선택한 시간 옵션 표시
-  const extMap = {}; // "stuId_hwId" → "내일 등원 전" 등 선택값
+  // ── 연장 신청 맵 ──
+  const extMap = {};
   _extensions.forEach(e => {
-    if(e.status==='approved'||e.status==='pending') {
+    if(e.status==='approved'||e.status==='pending')
       extMap[`${e.student_id}_${e.homework_id}`] = e.requested_time||'';
-    }
   });
 
-  function getMissingStudents(hwList) {
+  // ── 미제출자 계산: cutoff 이전 제출만 "정시 제출"로 인정 ──
+  function getMissing(hwList, cutoff) {
     const clsMap = {};
     getClasses().forEach(cls => { clsMap[cls] = { noHW: true, missing: [] }; });
     hwList.forEach(hw => {
-      const clsList = hwCls(hw);
-      const relevantCls = clsList.length ? clsList : getClasses();
+      const relevantCls = hwCls(hw).length ? hwCls(hw) : getClasses();
       relevantCls.forEach(cls => {
         if(!clsMap[cls]) clsMap[cls] = { noHW: true, missing: [] };
         clsMap[cls].noHW = false;
-        const sub = _submissions[hw.id]||{};
-        const stuList = _students.filter(s=>s.class===cls);
-        stuList.filter(s => !sub[s.id]?.submitted || sub[s.id]?.rejection_status==='rejected').forEach(s => {
-          if(!clsMap[cls].missing.find(m=>m.name===s.name)) {
-            clsMap[cls].missing.push({ name: s.name, reason: extMap[`${s.id}_${hw.id}`]||'' });
-          }
+        _students.filter(s=>s.class===cls).forEach(s => {
+          const sub = (_submissions[hw.id]||{})[s.id];
+          const submittedAt = sub?.submitted_at ? new Date(sub.submitted_at) : null;
+          const onTime = sub?.submitted && submittedAt && submittedAt <= cutoff && sub.rejection_status !== 'rejected';
+          if (onTime) return; // 마감 전 제출 → 제외
+          if (!clsMap[cls].missing.find(m=>m.id===s.id))
+            clsMap[cls].missing.push({ id: s.id, name: s.name, reason: extMap[`${s.id}_${hw.id}`]||'' });
         });
       });
     });
     return clsMap;
   }
 
-  const todayMap = getMissingStudents(todayHWs);
-  const prevMap  = getMissingStudents(prevHWs);
+  const todayMap = getMissing(todayHWs, reportCutoff);
 
-  // 오늘 미제출자 섹션
+  // ── 오늘 미제출자 메시지 ──
   let msg = `[${dateLabel} 미제출자]\n`;
-  const classes = getClasses();
   classes.forEach(cls => {
     const info = todayMap[cls];
     if(!info) return;
-    if(info.noHW) {
-      msg += `${cls} - 숙제없음\n`;
-    } else if(info.missing.length===0) {
-      msg += `${cls} - 전원완료\n`;
-    } else {
-      const names = info.missing.map(s => s.reason ? `${s.name}(${s.reason})` : s.name).join(', ');
-      msg += `${cls} - ${names}\n`;
-    }
+    if(info.noHW) { msg += `${cls} - 숙제없음\n`; return; }
+    if(info.missing.length===0) { msg += `${cls} - 전원완료\n`; return; }
+    msg += `${cls} - ${info.missing.map(s=>s.reason?`${s.name}(${s.reason})`:s.name).join(', ')}\n`;
   });
 
-  // 전일 미제출자 섹션: 전날 기한 숙제에서 미제출 보고됐던 인원 현황
-  // (정시 제출자는 제외, 연장 신청자+미제출자만 → 지금 제출했으면 완료 표시)
-  const prevDay = new Date(dateStr+'T00:00:00'); prevDay.setDate(prevDay.getDate()-1);
-  const prevDayStr = prevDay.toISOString().slice(0,10);
-  const prevDayHWs = _homeworks.filter(h => h.due_date === prevDayStr);
-  const prevDayEntries = []; // { name, cls, label }
+  // ── 전일미제출자: 이틀 전 숙제, 어제 15:00 마감 기준으로 미제출이었던 학생 현황 ──
+  const prevEntries = [];
   prevDayHWs.forEach(hw => {
-    const clsList = hwCls(hw).length ? hwCls(hw) : getClasses();
-    clsList.forEach(cls => {
-      _students.filter(s => s.class === cls).forEach(stu => {
+    const relevantCls = hwCls(hw).length ? hwCls(hw) : getClasses();
+    relevantCls.forEach(cls => {
+      _students.filter(s=>s.class===cls).forEach(stu => {
         const sub = _submissions[hw.id]?.[stu.id];
-        const submitted = sub?.submitted && sub.rejection_status !== 'rejected';
-        const ext = _extensions.find(e => e.student_id === stu.id && e.homework_id === hw.id
-          && (e.status === 'approved' || e.status === 'pending'));
-        // 연장도 없고 제출 완료면 = 정시 제출자 → 어제 보고 안 됐던 사람, 건너뜀
-        if (!ext && submitted) return;
-        if (prevDayEntries.find(x => x.name === stu.name && x.cls === cls)) return;
-        const label = submitted ? '완료' : (ext ? (ext.requested_time || '연장') : '');
-        prevDayEntries.push({ name: stu.name, cls, label });
+        const submittedAt = sub?.submitted_at ? new Date(sub.submitted_at) : null;
+        // 어제 15:00 이전 정시 제출 → 어제 보고서에 없던 학생 → 건너뜀
+        const wasOnTime = sub?.submitted && submittedAt && submittedAt <= prevCutoff && sub.rejection_status !== 'rejected';
+        if (wasOnTime) return;
+        if (prevEntries.find(x=>x.name===stu.name&&x.cls===cls)) return;
+        const nowSubmitted = sub?.submitted && sub.rejection_status !== 'rejected';
+        const ext = _extensions.find(e=>e.student_id===stu.id&&e.homework_id===hw.id&&(e.status==='approved'||e.status==='pending'));
+        const label = nowSubmitted ? '완료' : (ext ? (ext.requested_time||'연장') : '');
+        prevEntries.push({ name: stu.name, cls, label });
       });
     });
   });
-  if (prevDayEntries.length) {
-    const prevByClass = {};
-    prevDayEntries.forEach(e => { (prevByClass[e.cls]||(prevByClass[e.cls]=[])).push(e.label ? `${e.name}(${e.label})` : e.name); });
-    const prevLines = classes.filter(c => prevByClass[c]).map(c => prevByClass[c].join(', '));
-    msg += `\n전일미제출자\n` + prevLines.join('\n');
+  if (prevEntries.length) {
+    const byClass = {};
+    prevEntries.forEach(e => { (byClass[e.cls]||(byClass[e.cls]=[])).push(e.label?`${e.name}(${e.label})`:e.name); });
+    msg += `\n전일미제출자\n` + classes.filter(c=>byClass[c]).map(c=>byClass[c].join(', ')).join('\n');
   }
 
-  // 미리보기 업데이트
+  // ── 미리보기 ──
   window._dailyMsg = msg;
   document.getElementById('dailyBubble').style.color = '';
   document.getElementById('dailyBubble').innerHTML = escH(msg);
 
-  // 상세 패널 업데이트
-  let detailHtml = `<div style="font-weight:700;color:var(--primary);margin-bottom:10px">📅 ${dateLabel} 기준</div>`;
-  detailHtml += `<div style="font-size:12px;font-weight:600;color:var(--text-sub);margin-bottom:6px">오늘 기한 숙제: ${todayHWs.length}개 / 전일 미처리 숙제: ${prevHWs.length}개</div>`;
+  // ── 상세 패널 ──
+  let detailHtml = `<div style="font-weight:700;color:var(--primary);margin-bottom:10px">📅 ${fmtDailyDate(hwDayStr)} 기준 숙제 · 마감 ${dateLabel} 오후 3시</div>`;
   classes.forEach(cls => {
     const info = todayMap[cls];
     if(!info || info.noHW) return;

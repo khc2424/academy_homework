@@ -1953,13 +1953,10 @@ async function generateDailyMsg() {
   await loadSubmissions();
   if(!_extensions.length) await loadExtensions();
 
-  // ── 날짜 계산 ──
-  const hwDay = new Date(dateStr+'T00:00:00'); hwDay.setDate(hwDay.getDate()-1);
-  const hwDayStr = hwDay.toISOString().slice(0,10);           // 기준 숙제 날짜 (전날)
-
-  const prevDay2 = new Date(hwDay); prevDay2.setDate(prevDay2.getDate()-1);
-  const prevDay2Str = prevDay2.toISOString().slice(0,10);     // 전일미제출자 숙제 날짜 (이틀 전)
-  const prevCutoff = new Date(hwDayStr + 'T15:00:00');        // 어제 오후 3시 (전일 기준)
+  // ── 날짜 계산 (로컬 날짜 함수 사용 → 한국 시간대 오류 방지) ──
+  const hwDayStr   = localDateAddDays(dateStr, -1);   // 메인 숙제 날짜 (전날)
+  const prevDay2Str = localDateAddDays(dateStr, -2);  // 전일미제출자 숙제 날짜 (이틀 전)
+  const prevCutoff = new Date(hwDayStr + 'T15:00:00'); // 전날 오후 3시 기준
 
   // ── 숙제 목록 ──
   // dateStr=4/3 선택 → 메인=4/2 기한, 전일미제출자=4/1 기한, prevCutoff=4/2 15:00

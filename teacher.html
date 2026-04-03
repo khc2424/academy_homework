@@ -2031,8 +2031,7 @@ async function generateDailyMsg() {
         if (wasOnTime) return;
         if (prevEntries.find(x=>x.name===stu.name&&x.cls===cls)) return;
         const nowSubmitted = sub?.submitted && sub.rejection_status !== 'rejected';
-        const ext = _extensions.find(e=>e.student_id===stu.id&&e.homework_id===hw.id&&(e.status==='approved'||e.status==='pending'));
-        const label = nowSubmitted ? '완료' : (ext ? (ext.requested_time||'연장') : '');
+        const label = nowSubmitted ? '완료' : '';
         prevEntries.push({ name: stu.name, cls, label });
       });
     });

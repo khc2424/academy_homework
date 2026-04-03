@@ -286,13 +286,15 @@ function checkPw() {
   <div class="page" id="page-photos">
     <div class="page-title">📸 제출 사진 확인</div>
     <div class="page-sub">학생들이 제출한 숙제 사진을 확인하고 검토합니다</div>
-    <div class="d-flex gap-2 mb-3 flex-wrap">
+    <div class="d-flex gap-2 mb-3 flex-wrap align-items-center">
+      <input type="date" class="fc" style="width:155px" id="photoFilterDate" onchange="photoDateChanged()" title="날짜로 필터">
       <select class="fc" style="width:auto" id="photoFilterHW" onchange="renderPhotos()"><option value="">전체 숙제</option></select>
       <select class="fc" style="width:auto" id="photoFilterClass" onchange="renderPhotos()"><option value="">전체 반</option></select>
       <select class="fc" style="width:auto" id="photoFilterReview" onchange="renderPhotos()">
         <option value="">전체</option><option value="false">미확인</option><option value="true">확인 완료</option>
         <option value="rejected">❌ 반려</option><option value="resubmitted">🔄 재제출</option>
       </select>
+      <button class="btn-o" onclick="clearPhotoDate()">전체 날짜</button>
       <button class="btn-o" style="margin-left:auto" onclick="loadPhotos()">🔄 새로고침</button>
     </div>
     <div id="photoList"></div>
@@ -332,13 +334,15 @@ function checkPw() {
   <div class="page" id="page-extensions">
     <div class="page-title">📅 연장 신청 관리</div>
     <div class="page-sub">학생들의 기한 연장 신청을 확인하고 승인/거절합니다</div>
-    <div class="d-flex gap-2 mb-3">
+    <div class="d-flex gap-2 mb-3 flex-wrap align-items-center">
+      <input type="date" class="fc" style="width:155px" id="extFilterDate" onchange="renderExtensions()" title="날짜로 필터">
       <select class="fc" style="width:auto" id="extFilterStatus" onchange="renderExtensions()">
-        <option value="">전체</option>
+        <option value="">전체 상태</option>
         <option value="pending">대기 중</option>
         <option value="approved">승인됨</option>
         <option value="rejected">거절됨</option>
       </select>
+      <button class="btn-o" onclick="clearExtDate()">전체 날짜</button>
       <button class="btn-o" onclick="loadExtensions()">🔄 새로고침</button>
     </div>
     <div id="extList"></div>
@@ -349,8 +353,10 @@ function checkPw() {
     <div class="page-title">🚨 미제출 현황</div>
     <div class="page-sub">기한 내 미제출 학생을 반별로 확인합니다</div>
     <div class="d-flex gap-2 mb-3 flex-wrap align-items-center">
-      <select class="fc" style="width:auto;min-width:260px" id="missingHWSel" onchange="renderMissing()"><option value="">전체 최근 14일 숙제</option></select>
+      <input type="date" class="fc" style="width:155px" id="missingDateFilter" onchange="missingDateChanged()" title="날짜로 필터">
+      <select class="fc" style="width:auto;min-width:220px" id="missingHWSel" onchange="renderMissing()"><option value="">전체 최근 14일 숙제</option></select>
       <select class="fc" style="width:auto" id="missingClsFilter" onchange="renderMissing()"><option value="">전체 반</option></select>
+      <button class="btn-o" onclick="clearMissingDate()">전체 날짜</button>
       <button class="btn-o" style="margin-left:auto" onclick="loadMissing()">🔄 새로고침</button>
     </div>
     <div id="missingList"></div>
@@ -893,11 +899,25 @@ function renderPhotoItem(url, allUrls, idx) {
   return `<img class="photo-thumb" src="${url}" onclick="openLightbox([${urlsEsc}],${idx})">`;
 }
 
+function photoDateChanged() {
+  const dateFilter = document.getElementById('photoFilterDate').value;
+  const hws = dateFilter ? _homeworks.filter(h => h.due_date === dateFilter) : _homeworks;
+  const phHWOpts = '<option value="">전체 숙제</option>' + hws.map(h=>`<option value="${h.id}">[${h.subject}] ${hwCls(h).join('/')} (${h.due_date})</option>`).join('');
+  document.getElementById('photoFilterHW').innerHTML = phHWOpts;
+  renderPhotos();
+}
+function clearPhotoDate() {
+  document.getElementById('photoFilterDate').value = '';
+  photoDateChanged();
+}
+
 function renderPhotos() {
   const hwFilter = document.getElementById('photoFilterHW').value;
   const clsFilter = document.getElementById('photoFilterClass').value;
   const revFilter = document.getElementById('photoFilterReview').value;
+  const dateFilter = document.getElementById('photoFilterDate')?.value || '';
   let list = _photoSubs.filter(s => {
+    if (dateFilter && s.homeworks?.due_date !== dateFilter) return false;
     if (hwFilter && s.homework_id!==hwFilter) return false;
     if (clsFilter && s.students?.class!==clsFilter) return false;
     if (revFilter==='rejected') return s.rejection_status==='rejected';
@@ -1575,9 +1595,17 @@ async function loadExtensions() {
   badge.style.display = pending > 0 ? 'inline' : 'none';
 }
 
+function clearExtDate() {
+  document.getElementById('extFilterDate').value = '';
+  renderExtensions();
+}
+
 function renderExtensions() {
   const filter = document.getElementById('extFilterStatus')?.value || '';
-  const list = filter ? _extensions.filter(e=>e.status===filter) : _extensions;
+  const dateFilter = document.getElementById('extFilterDate')?.value || '';
+  let list = _extensions;
+  if (filter) list = list.filter(e=>e.status===filter);
+  if (dateFilter) list = list.filter(e=>e.homeworks?.due_date===dateFilter);
   const el = document.getElementById('extList');
   if (!el) return;
   if (!list.length) { el.innerHTML='<div class="empty-st"><span class="empty-ic">📅</span>연장 신청이 없습니다</div>'; return; }
@@ -1714,16 +1742,41 @@ function loadMissing() {
   renderMissing();
 }
 
+function missingDateChanged() {
+  const dateFilter = document.getElementById('missingDateFilter').value;
+  const msel = document.getElementById('missingHWSel');
+  if (dateFilter) {
+    const hws = _homeworks.filter(h => h.due_date === dateFilter);
+    msel.innerHTML = `<option value="">전체 (${dateFilter})</option>` +
+      hws.map(h=>`<option value="${h.id}">[${hwCls(h).join('/')}반] ${h.due_date}</option>`).join('');
+  } else {
+    const cutoff14 = new Date(); cutoff14.setDate(cutoff14.getDate()-14);
+    const cut14Str = cutoff14.toISOString().slice(0,10);
+    const missingHWs = _homeworks.filter(h => h.due_date >= cut14Str);
+    msel.innerHTML = '<option value="">전체 최근 14일 숙제</option>' +
+      missingHWs.map(h=>`<option value="${h.id}">[${hwCls(h).join('/')}반] ${h.due_date}</option>`).join('');
+  }
+  msel.value = '';
+  renderMissing();
+}
+function clearMissingDate() {
+  document.getElementById('missingDateFilter').value = '';
+  missingDateChanged();
+}
+
 function renderMissing() {
   const hwFilter = document.getElementById('missingHWSel').value;
   const clsFilter = document.getElementById('missingClsFilter').value;
+  const dateFilter = document.getElementById('missingDateFilter')?.value || '';
   const el = document.getElementById('missingList');
   const cutoff = new Date(); cutoff.setDate(cutoff.getDate()-14);
   const cutStr = cutoff.toISOString().slice(0,10);
   const today = new Date().toISOString().slice(0,10);
   const hws = (hwFilter
     ? _homeworks.filter(h=>h.id===hwFilter)
-    : _homeworks.filter(h=>h.due_date >= cutStr))
+    : dateFilter
+      ? _homeworks.filter(h=>h.due_date===dateFilter)
+      : _homeworks.filter(h=>h.due_date >= cutStr))
     .sort((a,b)=>{
       if(a.due_date===today && b.due_date!==today) return -1;
       if(b.due_date===today && a.due_date!==today) return 1;
@@ -1955,26 +2008,32 @@ async function generateDailyMsg() {
     }
   });
 
-  // 전일 미제출자 섹션 (연장 신청 학생 기준: 제출 완료면 "완료", 미제출이면 선택한 시간)
-  const prevExtEntries = []; // { name, cls, label }
-  _extensions.forEach(e => {
-    if(e.status !== 'approved' && e.status !== 'pending') return;
-    const hw = _homeworks.find(h => h.id === e.homework_id);
-    if(!hw || hw.due_date >= dateStr) return; // 선택 날짜 이상 제외
-    const sub = _submissions[e.homework_id]?.[e.student_id];
-    const submitted = sub?.submitted && sub.rejection_status !== 'rejected';
-    const stu = _students.find(s => s.id === e.student_id);
-    if(!stu) return;
-    // 중복 방지 (같은 학생이 여러 연장 신청한 경우 최신 우선)
-    if(!prevExtEntries.find(x => x.name === stu.name && x.cls === stu.class)) {
-      prevExtEntries.push({ name: stu.name, cls: stu.class, label: submitted ? '완료' : (e.requested_time || '미제출') });
-    }
+  // 전일 미제출자 섹션: 전날 기한 숙제에서 미제출 보고됐던 인원 현황
+  // (정시 제출자는 제외, 연장 신청자+미제출자만 → 지금 제출했으면 완료 표시)
+  const prevDay = new Date(dateStr+'T00:00:00'); prevDay.setDate(prevDay.getDate()-1);
+  const prevDayStr = prevDay.toISOString().slice(0,10);
+  const prevDayHWs = _homeworks.filter(h => h.due_date === prevDayStr);
+  const prevDayEntries = []; // { name, cls, label }
+  prevDayHWs.forEach(hw => {
+    const clsList = hwCls(hw).length ? hwCls(hw) : getClasses();
+    clsList.forEach(cls => {
+      _students.filter(s => s.class === cls).forEach(stu => {
+        const sub = _submissions[hw.id]?.[stu.id];
+        const submitted = sub?.submitted && sub.rejection_status !== 'rejected';
+        const ext = _extensions.find(e => e.student_id === stu.id && e.homework_id === hw.id
+          && (e.status === 'approved' || e.status === 'pending'));
+        // 연장도 없고 제출 완료면 = 정시 제출자 → 어제 보고 안 됐던 사람, 건너뜀
+        if (!ext && submitted) return;
+        if (prevDayEntries.find(x => x.name === stu.name && x.cls === cls)) return;
+        const label = submitted ? '완료' : (ext ? (ext.requested_time || '연장') : '');
+        prevDayEntries.push({ name: stu.name, cls, label });
+      });
+    });
   });
-  if(prevExtEntries.length) {
-    // 반별로 모아서 한 줄씩
+  if (prevDayEntries.length) {
     const prevByClass = {};
-    prevExtEntries.forEach(e => { (prevByClass[e.cls]||(prevByClass[e.cls]=[])).push(`${e.name}(${e.label})`); });
-    const prevLines = classes.filter(c=>prevByClass[c]).map(c=>prevByClass[c].join(', '));
+    prevDayEntries.forEach(e => { (prevByClass[e.cls]||(prevByClass[e.cls]=[])).push(e.label ? `${e.name}(${e.label})` : e.name); });
+    const prevLines = classes.filter(c => prevByClass[c]).map(c => prevByClass[c].join(', '));
     msg += `\n전일미제출자\n` + prevLines.join('\n');
   }
 

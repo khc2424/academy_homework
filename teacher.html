@@ -1962,8 +1962,9 @@ async function generateDailyMsg() {
   const prevCutoff = new Date(hwDayStr + 'T15:00:00');        // 어제 오후 3시 (전일 기준)
 
   // ── 숙제 목록 ──
-  const todayHWs = _homeworks.filter(h => h.due_date === dateStr);        // 오늘 기한 숙제 (선택 날짜)
-  const prevDayHWs = _homeworks.filter(h => h.due_date === hwDayStr);    // 전일미제출자용 (어제 기한)
+  // dateStr=4/3 선택 → 메인=4/2 기한, 전일미제출자=4/1 기한, prevCutoff=4/2 15:00
+  const todayHWs   = _homeworks.filter(h => h.due_date === hwDayStr);     // 메인: 전날 기한
+  const prevDayHWs = _homeworks.filter(h => h.due_date === prevDay2Str);  // 전일미제출자: 이틀 전 기한
 
   const dateLabel = fmtDailyDate(dateStr);
   const classes = getClasses();
@@ -2011,7 +2012,7 @@ async function generateDailyMsg() {
   const todayMap = getMissing(todayHWs, null);
 
   // ── 오늘 미제출자 메시지 ──
-  let msg = `[${dateLabel} 미제출자]\n`;
+  let msg = `[${fmtDailyDate(hwDayStr)} 미제출자]\n`;
   classes.forEach(cls => {
     const info = todayMap[cls];
     if(!info) return;
@@ -2051,7 +2052,7 @@ async function generateDailyMsg() {
   document.getElementById('dailyBubble').innerHTML = escH(msg);
 
   // ── 상세 패널 ──
-  let detailHtml = `<div style="font-weight:700;color:var(--primary);margin-bottom:10px">📅 ${dateLabel} 미제출 현황</div>`;
+  let detailHtml = `<div style="font-weight:700;color:var(--primary);margin-bottom:10px">📅 ${fmtDailyDate(hwDayStr)} 기한 숙제 미제출 현황</div>`;
   classes.forEach(cls => {
     const info = todayMap[cls];
     if(!info || info.noHW) return;

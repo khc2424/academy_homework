@@ -297,10 +297,10 @@ async function doLogin() {
   hideLoading();
   if (error || !data || !data.length) { errEl.textContent='이름 또는 비밀번호가 일치하지 않습니다.'; errEl.style.display='block'; return; }
 
-  // 비밀번호 확인: password null이면 전화번호 뒷 4자리가 기본값
+  // 비밀번호 확인: parent_password null이면 전화번호 뒷 4자리가 기본값
   const matched = data.find(s => {
     const defaultPw = (s.phone||'').replace(/\D/g,'').slice(-4);
-    const storedPw = (s.password !== null && s.password !== undefined) ? s.password : defaultPw;
+    const storedPw = (s.parent_password !== null && s.parent_password !== undefined) ? s.parent_password : defaultPw;
     return pw === storedPw;
   });
   if (!matched) { errEl.textContent='이름 또는 비밀번호가 일치하지 않습니다.'; errEl.style.display='block'; return; }
@@ -309,7 +309,7 @@ async function doLogin() {
   localStorage.setItem('parentStudent', JSON.stringify({id: matched.id}));
   await initApp();
   // 첫 로그인 (비밀번호 미설정)이면 변경 팝업
-  if (!matched.password) {
+  if (!matched.parent_password) {
     setTimeout(() => showParentPwModal(true), 400);
   }
 }
@@ -689,9 +689,9 @@ async function doParentChangePw() {
   if (!p1) { errEl.textContent = '비밀번호를 입력해주세요'; errEl.style.display = 'block'; return; }
   if (p1.length < 4) { errEl.textContent = '비밀번호는 4자 이상이어야 합니다'; errEl.style.display = 'block'; return; }
   if (p1 !== p2) { errEl.textContent = '비밀번호가 일치하지 않습니다'; errEl.style.display = 'block'; return; }
-  const { error } = await db.from('students').update({ password: p1 }).eq('id', _student.id);
+  const { error } = await db.from('students').update({ parent_password: p1 }).eq('id', _student.id);
   if (error) { errEl.textContent = '저장 중 오류: ' + error.message; errEl.style.display = 'block'; return; }
-  _student.password = p1;
+  _student.parent_password = p1;
   closeParentPwModal();
   alert('✅ 비밀번호가 설정되었습니다!');
 }

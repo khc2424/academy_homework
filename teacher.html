@@ -284,8 +284,10 @@ function checkPw() {
 
   <!-- PHOTOS -->
   <div class="page" id="page-photos">
-    <div class="page-title">📸 제출 사진 확인</div>
-    <div class="page-sub">학생들이 제출한 숙제 사진을 확인하고 검토합니다</div>
+    <div class="d-flex justify-content-between align-items-start mb-1">
+      <div><div class="page-title">📸 제출 사진 확인</div><div class="page-sub">학생들이 제출한 숙제 사진을 확인하고 검토합니다</div></div>
+      <button class="btn-o" style="font-size:12px;color:var(--danger);border-color:var(--danger);white-space:nowrap" onclick="cleanupOldPhotos()">🗑️ 1개월 지난 사진 정리</button>
+    </div>
     <div class="d-flex gap-2 mb-3 flex-wrap align-items-center">
       <input type="date" class="fc" style="width:155px" id="photoFilterDate" onchange="photoDateChanged()" title="날짜로 필터">
       <select class="fc" style="width:auto" id="photoFilterHW" onchange="renderPhotos()"><option value="">전체 숙제</option></select>
@@ -399,7 +401,7 @@ function checkPw() {
       <div class="card-h d-flex justify-content-between"><span>👥 학생 목록</span><span id="stuCount" style="font-size:13px;font-weight:400;color:var(--text-muted)"></span></div>
       <div class="table-responsive">
         <table class="table tbl mb-0">
-          <thead><tr><th>#</th><th>이름</th><th>반</th><th>연락처</th><th>제출률</th><th>평균점수</th><th>관리</th></tr></thead>
+          <thead><tr><th>#</th><th>이름</th><th>반</th><th>연락처</th><th>제출률</th><th>평균점수</th><th>비밀번호</th><th>관리</th></tr></thead>
           <tbody id="stuBody"></tbody>
         </table>
       </div>
@@ -521,6 +523,31 @@ function checkPw() {
       <div class="mb-3"><label style="font-size:13px;font-weight:500;color:var(--text-sub);display:block;margin-bottom:4px">연락처</label><input type="text" class="fc" id="stuPhone" placeholder="010-0000-0000"></div>
     </div>
     <div class="modal-ft"><button class="btn-o" onclick="closeModal('stuModal')">취소</button><button class="btn-p" onclick="saveStu()">저장</button></div>
+  </div>
+</div>
+
+<!-- 비밀번호 관리 모달 -->
+<div class="modal-ov" id="stuPwModal">
+  <div class="modal-bx" style="width:380px">
+    <div class="modal-hd">
+      <span style="font-weight:700;font-size:16px">🔑 비밀번호 관리</span>
+      <button onclick="closeModal('stuPwModal')" style="background:none;border:none;font-size:22px;cursor:pointer;color:var(--text-muted)">&times;</button>
+    </div>
+    <div class="modal-bd">
+      <input type="hidden" id="stuPwEditId">
+      <div style="font-weight:600;font-size:14px;color:var(--text);margin-bottom:4px" id="stuPwName"></div>
+      <div style="font-size:13px;color:var(--text-muted);margin-bottom:16px" id="stuPwStatus"></div>
+      <div class="mb-3">
+        <label style="font-size:13px;font-weight:500;color:var(--text-sub);display:block;margin-bottom:4px">새 비밀번호 설정</label>
+        <input type="text" class="fc" id="stuNewPwInput" placeholder="새 비밀번호 입력 (4자 이상)">
+      </div>
+      <div style="font-size:12px;color:var(--text-muted);margin-bottom:8px">초기화 버튼을 누르면 비밀번호가 삭제되어 기본값(전화번호 뒷 4자리)으로 돌아갑니다.</div>
+    </div>
+    <div class="modal-ft">
+      <button class="btn-o" onclick="closeModal('stuPwModal')">취소</button>
+      <button class="btn-o" style="color:var(--danger)" onclick="resetStuPw()">초기화</button>
+      <button class="btn-p" onclick="saveStuPw()">저장</button>
+    </div>
   </div>
 </div>
 
@@ -906,6 +933,56 @@ function photoDateChanged() {
 function clearPhotoDate() {
   document.getElementById('photoFilterDate').value = '';
   photoDateChanged();
+}
+
+async function cleanupOldPhotos() {
+  const cutoff = new Date(); cutoff.setMonth(cutoff.getMonth() - 1);
+  const cutoffStr = cutoff.toISOString();
+
+  // 1개월 이상 된 제출 중 사진 있는 것 조회
+  const { data: oldSubs, error } = await db.from('submissions')
+    .select('id, photo_urls, submitted_at')
+    .lt('submitted_at', cutoffStr)
+    .not('photo_urls', 'is', null);
+
+  if (error) { toast('조회 오류: ' + error.message, 'danger'); return; }
+
+  const targets = (oldSubs || []).filter(s => Array.isArray(s.photo_urls) && s.photo_urls.length > 0);
+  if (!targets.length) { toast('정리할 사진이 없습니다', 'info'); return; }
+
+  const totalPhotos = targets.reduce((acc, s) => acc + s.photo_urls.length, 0);
+  if (!confirm(`${targets.length}건 제출 기록의 사진 ${totalPhotos}장을 삭제합니다.\n(제출 기록·시간·연장 정보는 유지됩니다)\n\n계속하시겠습니까?`)) return;
+
+  // 스토리지 경로 추출 및 파일 삭제
+  const BUCKET = 'homework-photos';
+  const BASE_URL = db.storage.from(BUCKET).getPublicUrl('').data.publicUrl.replace(/\/$/, '');
+  const allPaths = [];
+  targets.forEach(s => {
+    s.photo_urls.forEach(url => {
+      // URL에서 버킷 이후 경로 추출
+      const marker = `/object/public/${BUCKET}/`;
+      const idx = url.indexOf(marker);
+      if (idx !== -1) allPaths.push(decodeURIComponent(url.slice(idx + marker.length).split('?')[0]));
+    });
+  });
+
+  // 스토리지 파일 삭제 (최대 100개씩 배치)
+  let storageErrors = 0;
+  for (let i = 0; i < allPaths.length; i += 100) {
+    const batch = allPaths.slice(i, i + 100);
+    const { error: delErr } = await db.storage.from(BUCKET).remove(batch);
+    if (delErr) storageErrors++;
+  }
+
+  // DB에서 photo_urls 비우기 (제출 기록은 유지)
+  const ids = targets.map(s => s.id);
+  for (let i = 0; i < ids.length; i += 100) {
+    await db.from('submissions').update({ photo_urls: null }).in('id', ids.slice(i, i + 100));
+  }
+
+  await loadPhotos();
+  const msg = storageErrors ? `완료 (스토리지 오류 ${storageErrors}건)` : `사진 ${totalPhotos}장 정리 완료`;
+  toast(msg, storageErrors ? 'info' : 'success');
 }
 
 function renderPhotos() {
@@ -1493,8 +1570,59 @@ function renderStudents() {
   const list=_students.filter(s=>(!cls||s.class===cls)&&(!q||s.name.toLowerCase().includes(q)||s.class.toLowerCase().includes(q)));
   document.getElementById('stuCount').textContent=`총 ${list.length}명`;
   const tb=document.getElementById('stuBody');
-  if(!list.length){tb.innerHTML='<tr><td colspan="7"><div class="empty-st"><span class="empty-ic">🙅</span>학생이 없습니다</div></td></tr>';return;}
-  tb.innerHTML=list.map((s,i)=>{const r=getStuRate(s.id);const avg=getStuAvg(s.id);return `<tr><td style="color:var(--text-muted)">${i+1}</td><td style="font-weight:600">${s.name}</td><td><span class="sub-badge">${s.class}반</span></td><td style="color:var(--text-sub)">${s.phone||'-'}</td><td><div class="d-flex align-items-center gap-2"><div style="background:var(--gray-200);border-radius:99px;height:8px;overflow:hidden;width:60px"><div style="height:100%;border-radius:99px;background:${r>=80?'var(--success)':r>=50?'var(--warning)':'var(--danger)'};width:${r}%"></div></div><span style="font-size:12px;font-weight:600">${r}%</span></div></td><td style="font-weight:600;color:${avg>=80?'var(--success)':avg>=60?'var(--warning)':avg!==null?'var(--danger)':'var(--text-muted)'}">${avg!==null?avg+'점':'-'}</td><td><div class="d-flex gap-1"><button class="btn-o" style="padding:4px 8px;font-size:12px" onclick="openStuModal('${s.id}')">✏️</button><button class="btn-o" style="padding:4px 8px;font-size:12px;color:var(--danger)" onclick="deleteStu('${s.id}')">🗑️</button></div></td></tr>`;}).join('');
+  if(!list.length){tb.innerHTML='<tr><td colspan="8"><div class="empty-st"><span class="empty-ic">🙅</span>학생이 없습니다</div></td></tr>';return;}
+  tb.innerHTML=list.map((s,i)=>{
+    const r=getStuRate(s.id);const avg=getStuAvg(s.id);
+    const pwStatus=s.password?`<span style="color:var(--success);font-size:12px;font-weight:600">변경됨</span>`:`<span style="color:var(--text-muted);font-size:12px">기본값</span>`;
+    return `<tr>
+      <td style="color:var(--text-muted)">${i+1}</td>
+      <td style="font-weight:600">${s.name}</td>
+      <td><span class="sub-badge">${s.class}반</span></td>
+      <td style="color:var(--text-sub)">${s.phone||'-'}</td>
+      <td><div class="d-flex align-items-center gap-2"><div style="background:var(--gray-200);border-radius:99px;height:8px;overflow:hidden;width:60px"><div style="height:100%;border-radius:99px;background:${r>=80?'var(--success)':r>=50?'var(--warning)':'var(--danger)'};width:${r}%"></div></div><span style="font-size:12px;font-weight:600">${r}%</span></div></td>
+      <td style="font-weight:600;color:${avg>=80?'var(--success)':avg>=60?'var(--warning)':avg!==null?'var(--danger)':'var(--text-muted)'}">${avg!==null?avg+'점':'-'}</td>
+      <td>${pwStatus}</td>
+      <td><div class="d-flex gap-1">
+        <button class="btn-o" style="padding:4px 8px;font-size:12px" onclick="openStuModal('${s.id}')">✏️</button>
+        <button class="btn-o" style="padding:4px 8px;font-size:12px" onclick="openStuPwModal('${s.id}')" title="비밀번호 관리">🔑</button>
+        <button class="btn-o" style="padding:4px 8px;font-size:12px;color:var(--danger)" onclick="deleteStu('${s.id}')">🗑️</button>
+      </div></td>
+    </tr>`;
+  }).join('');
+}
+
+function openStuPwModal(id) {
+  const s = _students.find(x => x.id === id);
+  if (!s) return;
+  document.getElementById('stuPwEditId').value = id;
+  document.getElementById('stuPwName').textContent = `${s.name} (${s.class}반)`;
+  const defaultPw = (s.phone||'').replace(/\D/g,'').slice(-4);
+  document.getElementById('stuPwStatus').textContent = s.password
+    ? `현재 비밀번호: ${s.password}`
+    : `비밀번호 미설정 — 기본값(전화번호 뒷 4자리): ${defaultPw||'번호 없음'}`;
+  document.getElementById('stuNewPwInput').value = '';
+  openModal('stuPwModal');
+}
+
+async function saveStuPw() {
+  const id = document.getElementById('stuPwEditId').value;
+  const pw = document.getElementById('stuNewPwInput').value.trim();
+  if (!pw) { toast('새 비밀번호를 입력해주세요', 'danger'); return; }
+  if (pw.length < 4) { toast('비밀번호는 4자 이상이어야 합니다', 'danger'); return; }
+  const { error } = await db.from('students').update({ password: pw }).eq('id', id);
+  if (error) { toast('오류: ' + error.message, 'danger'); return; }
+  toast('비밀번호가 설정되었습니다');
+  await loadStudents(); closeModal('stuPwModal'); renderStudents();
+}
+
+async function resetStuPw() {
+  const id = document.getElementById('stuPwEditId').value;
+  const s = _students.find(x => x.id === id);
+  if (!confirm(`${s?.name||'이 학생'}의 비밀번호를 초기화하시겠습니까?\n(전화번호 뒷 4자리로 돌아갑니다)`)) return;
+  const { error } = await db.from('students').update({ password: null }).eq('id', id);
+  if (error) { toast('오류: ' + error.message, 'danger'); return; }
+  toast('비밀번호가 초기화되었습니다', 'info');
+  await loadStudents(); closeModal('stuPwModal'); renderStudents();
 }
 
 function openStuModal(id){

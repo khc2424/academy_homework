@@ -113,17 +113,32 @@
   <div class="login-box">
     <div class="login-logo">👨‍👩‍👧</div>
     <div class="login-title">학부모 확인</div>
-    <div class="login-sub">자녀의 이름과 전화번호 뒷 4자리를 입력하세요</div>
+    <div class="login-sub">자녀의 이름과 비밀번호를 입력하세요</div>
     <div class="mb-3">
       <label style="font-size:13px;font-weight:600;color:var(--gray-800);display:block;margin-bottom:6px">자녀 이름</label>
       <input class="fc" id="loginName" type="text" placeholder="예: 홍길동" autocomplete="off">
     </div>
     <div class="mb-3">
-      <label style="font-size:13px;font-weight:600;color:var(--gray-800);display:block;margin-bottom:6px">전화번호 뒷 4자리</label>
-      <input class="fc" id="loginPhone" type="tel" inputmode="numeric" maxlength="4" placeholder="예: 1234" autocomplete="off">
+      <label style="font-size:13px;font-weight:600;color:var(--gray-800);display:block;margin-bottom:6px">비밀번호</label>
+      <input class="fc" id="loginPhone" type="password" placeholder="비밀번호 입력" autocomplete="off">
     </div>
-    <button class="btn-login" onclick="doLogin()">확인하기</button>
-    <div class="login-err" id="loginErr">이름 또는 전화번호가 일치하지 않습니다.</div>
+    <button class="btn-login" onclick="doLogin()">로그인</button>
+    <div class="login-err" id="loginErr">이름 또는 비밀번호가 일치하지 않습니다.</div>
+    <div style="text-align:center;margin-top:12px;font-size:12px;color:#aaa">초기 비밀번호: 전화번호 뒷 4자리</div>
+  </div>
+</div>
+
+<!-- 학부모 비밀번호 변경 모달 -->
+<div id="parentPwModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:9999;align-items:center;justify-content:center;padding:20px">
+  <div style="background:#fff;border-radius:20px;padding:32px 24px;width:100%;max-width:340px;box-shadow:0 20px 60px rgba(0,0,0,.3)">
+    <div style="font-size:28px;text-align:center;margin-bottom:8px">🔑</div>
+    <div id="parentPwTitle" style="font-size:18px;font-weight:700;text-align:center;color:var(--gray-800);margin-bottom:6px">비밀번호 변경</div>
+    <div id="parentPwSub" style="font-size:13px;color:var(--gray-600);text-align:center;margin-bottom:20px;line-height:1.5"></div>
+    <input id="parentNewPw1" type="password" placeholder="새 비밀번호 (4자 이상)" style="width:100%;padding:12px 14px;border:1.5px solid var(--gray-200);border-radius:10px;font-size:14px;outline:none;font-family:inherit;margin-bottom:8px;box-sizing:border-box">
+    <input id="parentNewPw2" type="password" placeholder="비밀번호 확인" style="width:100%;padding:12px 14px;border:1.5px solid var(--gray-200);border-radius:10px;font-size:14px;outline:none;font-family:inherit;margin-bottom:8px;box-sizing:border-box" onkeydown="if(event.key==='Enter')doParentChangePw()">
+    <div id="parentPwErr" style="display:none;color:#ef4444;font-size:13px;margin-bottom:8px;text-align:center"></div>
+    <button onclick="doParentChangePw()" style="width:100%;background:var(--primary);color:#fff;border:none;border-radius:10px;padding:12px;font-size:14px;font-weight:700;cursor:pointer;margin-bottom:8px">저장하기</button>
+    <button onclick="closeParentPwModal()" style="width:100%;background:var(--gray-100);border:1px solid var(--gray-200);border-radius:10px;padding:10px;font-size:13px;cursor:pointer;color:var(--gray-600)">나중에</button>
   </div>
 </div>
 
@@ -157,6 +172,7 @@
       <div class="app-header-title" id="appTitle">학부모 확인</div>
       <div class="app-header-sub" id="appSub"></div>
     </div>
+    <button class="btn-logout" onclick="showParentPwModal(false)" style="margin-right:6px">🔑 비번</button>
     <button class="btn-logout" onclick="doLogout()">로그아웃</button>
   </div>
   <div class="tab-bar">
@@ -270,26 +286,32 @@ function localToday() {
 
 // ── 로그인
 async function doLogin() {
-  const name  = document.getElementById('loginName').value.trim();
-  const phone = document.getElementById('loginPhone').value.trim();
+  const name = document.getElementById('loginName').value.trim();
+  const pw   = document.getElementById('loginPhone').value.trim();
   const errEl = document.getElementById('loginErr');
   errEl.style.display = 'none';
-  if (!name || !phone) { errEl.textContent='이름과 전화번호를 모두 입력해주세요.'; errEl.style.display='block'; return; }
-  if (phone.length!==4 || !/^\d{4}$/.test(phone)) { errEl.textContent='전화번호 뒷 4자리를 숫자로 입력해주세요.'; errEl.style.display='block'; return; }
+  if (!name || !pw) { errEl.textContent='이름과 비밀번호를 모두 입력해주세요.'; errEl.style.display='block'; return; }
 
   showLoading();
   const { data, error } = await db.from('students').select('*').eq('name', name);
   hideLoading();
-  if (error || !data || !data.length) { errEl.textContent='이름 또는 전화번호가 일치하지 않습니다.'; errEl.style.display='block'; return; }
+  if (error || !data || !data.length) { errEl.textContent='이름 또는 비밀번호가 일치하지 않습니다.'; errEl.style.display='block'; return; }
 
+  // 비밀번호 확인: password null이면 전화번호 뒷 4자리가 기본값
   const matched = data.find(s => {
-    const p = (s.phone||'').replace(/\D/g,'');
-    return p.slice(-4) === phone;
+    const defaultPw = (s.phone||'').replace(/\D/g,'').slice(-4);
+    const storedPw = (s.password !== null && s.password !== undefined) ? s.password : defaultPw;
+    return pw === storedPw;
   });
-  if (!matched) { errEl.textContent='이름 또는 전화번호가 일치하지 않습니다.'; errEl.style.display='block'; return; }
+  if (!matched) { errEl.textContent='이름 또는 비밀번호가 일치하지 않습니다.'; errEl.style.display='block'; return; }
+
   _student = matched;
-  localStorage.setItem('parentStudent', JSON.stringify(matched));
+  localStorage.setItem('parentStudent', JSON.stringify({id: matched.id}));
   await initApp();
+  // 첫 로그인 (비밀번호 미설정)이면 변경 팝업
+  if (!matched.password) {
+    setTimeout(() => showParentPwModal(true), 400);
+  }
 }
 
 function doLogout() {
@@ -632,8 +654,47 @@ document.getElementById('loginName').addEventListener('keydown', e=>{ if(e.key==
 // ── 세션 복원
 (async () => {
   const saved = localStorage.getItem('parentStudent');
-  if (saved) { try { _student=JSON.parse(saved); await initApp(); } catch(e) { localStorage.removeItem('parentStudent'); } }
+  if (saved) {
+    try {
+      const { id } = JSON.parse(saved);
+      const { data: stu } = await db.from('students').select('*').eq('id', id).single();
+      if (stu) { _student = stu; await initApp(); return; }
+    } catch(e) {}
+    localStorage.removeItem('parentStudent');
+  }
 })();
+
+// ── 학부모 비밀번호 변경
+let _parentIsFirstLogin = false;
+function showParentPwModal(isFirst) {
+  _parentIsFirstLogin = isFirst;
+  const modal = document.getElementById('parentPwModal');
+  document.getElementById('parentPwTitle').textContent = isFirst ? '비밀번호 설정' : '비밀번호 변경';
+  document.getElementById('parentPwSub').innerHTML = isFirst
+    ? '처음 로그인하셨습니다.<br>사용할 비밀번호를 설정해주세요.'
+    : '새 비밀번호를 입력해주세요.';
+  document.getElementById('parentNewPw1').value = '';
+  document.getElementById('parentNewPw2').value = '';
+  document.getElementById('parentPwErr').style.display = 'none';
+  modal.style.display = 'flex';
+}
+function closeParentPwModal() {
+  document.getElementById('parentPwModal').style.display = 'none';
+}
+async function doParentChangePw() {
+  const p1 = document.getElementById('parentNewPw1').value;
+  const p2 = document.getElementById('parentNewPw2').value;
+  const errEl = document.getElementById('parentPwErr');
+  errEl.style.display = 'none';
+  if (!p1) { errEl.textContent = '비밀번호를 입력해주세요'; errEl.style.display = 'block'; return; }
+  if (p1.length < 4) { errEl.textContent = '비밀번호는 4자 이상이어야 합니다'; errEl.style.display = 'block'; return; }
+  if (p1 !== p2) { errEl.textContent = '비밀번호가 일치하지 않습니다'; errEl.style.display = 'block'; return; }
+  const { error } = await db.from('students').update({ password: p1 }).eq('id', _student.id);
+  if (error) { errEl.textContent = '저장 중 오류: ' + error.message; errEl.style.display = 'block'; return; }
+  _student.password = p1;
+  closeParentPwModal();
+  alert('✅ 비밀번호가 설정되었습니다!');
+}
 </script>
 </body>
 </html>

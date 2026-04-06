@@ -344,6 +344,18 @@
   <button class="btn-submit" id="submitBtn" onclick="submitHomework()" style="display:none">
     ✅ 제출하기
   </button>
+
+  <!-- 제출 이력 -->
+  <div class="card" style="margin-top:16px">
+    <div class="card-title" style="justify-content:space-between">
+      <span>📋 제출 이력</span>
+      <span id="historyToggleBtn" onclick="toggleHistory()" style="font-size:12px;font-weight:600;color:#888;cursor:pointer;background:#f5f5f5;padding:3px 10px;border-radius:20px">펼치기 ▾</span>
+    </div>
+    <div id="historySection" style="display:none">
+      <div id="historyList" style="font-size:13px;color:#555;line-height:1.8">불러오는 중...</div>
+    </div>
+  </div>
+
   <div style="height:32px"></div>
 </div>
 
@@ -949,6 +961,65 @@ function resetForm() {
   renderPhotoGrid();
   document.getElementById('submitBtn').disabled = false;
   document.getElementById('uploadArea').style.display = 'block';
+}
+
+// ============================================================
+//  제출 이력
+// ============================================================
+let _historyOpen = false;
+
+function toggleHistory() {
+  _historyOpen = !_historyOpen;
+  const section = document.getElementById('historySection');
+  const btn = document.getElementById('historyToggleBtn');
+  section.style.display = _historyOpen ? 'block' : 'none';
+  btn.textContent = _historyOpen ? '접기 ▴' : '펼치기 ▾';
+  if (_historyOpen) renderHistory();
+}
+
+function renderHistory() {
+  const hws = window._homeworks || [];
+  const subs = window._mySubmissions || {};
+  const list = document.getElementById('historyList');
+
+  const submitted = hws.filter(hw => {
+    const s = subs[hw.id];
+    return s && s.submitted;
+  }).sort((a, b) => {
+    const ta = subs[a.id]?.submitted_at || '';
+    const tb = subs[b.id]?.submitted_at || '';
+    return tb.localeCompare(ta);
+  });
+
+  if (!submitted.length) {
+    list.innerHTML = '<div style="text-align:center;color:#bbb;padding:16px">제출한 숙제가 없습니다</div>';
+    return;
+  }
+
+  const DAYS = ['일','월','화','수','목','금','토'];
+  list.innerHTML = submitted.map(hw => {
+    const s = subs[hw.id];
+    const dateStr = s.submitted_at ? (() => {
+      const d = new Date(new Date(s.submitted_at).getTime() + 9*60*60*1000);
+      return `${d.getUTCMonth()+1}/${d.getUTCDate()}(${DAYS[d.getUTCDay()]}) ${String(d.getUTCHours()).padStart(2,'0')}:${String(d.getUTCMinutes()).padStart(2,'0')}`;
+    })() : '-';
+    const statusBadge = s.rejection_status === 'rejected'
+      ? `<span style="background:#fee2e2;color:#991b1b;padding:2px 8px;border-radius:12px;font-size:11px;font-weight:700">❌ 반려</span>`
+      : s.rejection_status === 'resubmitted'
+      ? `<span style="background:#ede9fe;color:#5b21b6;padding:2px 8px;border-radius:12px;font-size:11px;font-weight:700">🔄 재제출</span>`
+      : `<span style="background:#dcfce7;color:#166534;padding:2px 8px;border-radius:12px;font-size:11px;font-weight:700">✅ 제출</span>`;
+    const photoCnt = (s.photo_urls || []).length || (s.photo_urls ? 1 : 0);
+    return `<div style="padding:10px 0;border-bottom:1px solid #f0f0f0;display:flex;justify-content:space-between;align-items:flex-start;gap:8px">
+      <div>
+        <div style="font-weight:700;color:#333;font-size:13px">${hw.subject}</div>
+        <div style="font-size:12px;color:#888;margin-top:2px">기한: ${hw.due_date} · 제출: ${dateStr}</div>
+      </div>
+      <div style="display:flex;flex-direction:column;align-items:flex-end;gap:4px;flex-shrink:0">
+        ${statusBadge}
+        ${photoCnt ? `<span style="font-size:11px;color:#888">사진 ${photoCnt}장</span>` : ''}
+      </div>
+    </div>`;
+  }).join('');
 }
 
 // ============================================================

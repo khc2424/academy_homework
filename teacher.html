@@ -657,6 +657,7 @@ async function loadPhotos() {
   badge.textContent = unreviewed;
   badge.style.display = unreviewed > 0 ? 'inline' : 'none';
   document.getElementById('dNewPhotos').textContent = unreviewed;
+  renderPhotos();
 }
 
 // ---- UTILS ----
@@ -1468,7 +1469,11 @@ function renderMsgHWList() {
   }
   const filtered = _homeworks
     .filter(h => hwCls(h).length === 0 || hwCls(h).some(c => checkedCls.includes(c)))
-    .sort((a,b) => ((a.due_date||'')+(a.due_time||'')).localeCompare((b.due_date||'')+(b.due_time||'')));
+    .sort((a,b) => {
+      const aKey = (a.assign_date||'') + (a.due_date||'') + (a.due_time||'');
+      const bKey = (b.assign_date||'') + (b.due_date||'') + (b.due_time||'');
+      return bKey.localeCompare(aKey); // 최신 공지 먼저
+    });
   if (!filtered.length) {
     el.innerHTML = '<div style="color:var(--text-muted);font-size:13px;padding:8px">선택한 반의 숙제가 없습니다</div>';
     return;
@@ -1763,6 +1768,7 @@ async function loadExtensions() {
   const badge = document.getElementById('extCount');
   badge.textContent = pending;
   badge.style.display = pending > 0 ? 'inline' : 'none';
+  renderExtensions();
 }
 
 function clearExtDate() {
@@ -2213,6 +2219,8 @@ async function generateDailyMsg() {
     const byClass = {};
     prevEntries.forEach(e => { (byClass[e.cls]||(byClass[e.cls]=[])).push(e.label?`${e.name}(${e.label})`:e.name); });
     msg += `\n전일미제출자\n` + classes.filter(c=>byClass[c]).map(c=>byClass[c].join(', ')).join('\n');
+  } else if (prevDayHWs.length > 0) {
+    msg += `\n전일미제출자\n없음`;
   }
 
   // ── 미리보기 ──

@@ -166,6 +166,25 @@
     .login-sel { background: #fff url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath d='M1 1l5 5 5-5' stroke='%23999' stroke-width='1.5' fill='none'/%3E%3C/svg%3E") no-repeat right 14px center; background-size: 12px; }
     .login-sel:focus, .login-inp:focus { border-color: #FEE500; }
     .login-sel:disabled { background-color: #f5f5f5; color: #aaa; }
+    /* 재제출 버튼 */
+    .type-btn.selected-resub { border-color: #7c3aed; background: #f5f3ff; color: #5b21b6; }
+    /* 재제출 모달 */
+    .resub-modal-ov {
+      position: fixed; inset: 0; background: rgba(0,0,0,.55);
+      z-index: 9999; display: none; align-items: center; justify-content: center; padding: 16px;
+    }
+    .resub-modal-ov.show { display: flex; }
+    .resub-modal-box {
+      background: #fff; border-radius: 20px; width: 100%; max-width: 460px; max-height: 85vh;
+      overflow-y: auto; box-shadow: 0 20px 60px rgba(0,0,0,.3);
+      animation: popIn .3s cubic-bezier(.34,1.56,.64,1);
+    }
+    .resub-hw-item {
+      padding: 13px 20px; border-bottom: 1px solid #f0f0f0; cursor: pointer; transition: background .15s;
+      display: flex; justify-content: space-between; align-items: center; gap: 8px;
+    }
+    .resub-hw-item:active { background: #f5f5f5; }
+    .resub-hw-item:last-child { border-bottom: none; }
     /* 비밀번호 변경 모달 */
     .pw-modal-ov {
       position: fixed; inset: 0; background: rgba(0,0,0,.55);
@@ -215,6 +234,34 @@
     <div id="pwChangeErr" style="display:none;color:#ef4444;font-size:13px;margin-bottom:8px;text-align:center"></div>
     <button onclick="doChangePassword()" style="width:100%;padding:13px;background:#FEE500;border:none;border-radius:12px;font-size:15px;font-weight:800;color:#3C1E1E;cursor:pointer;margin-bottom:8px">저장하기</button>
     <button id="pwChangeCancelBtn" onclick="closePwChangeModal()" style="width:100%;padding:11px;background:#f5f5f5;border:1px solid #e0e0e0;border-radius:12px;font-size:14px;cursor:pointer;color:#666">나중에</button>
+  </div>
+</div>
+
+<!-- 재제출 모달 -->
+<div class="resub-modal-ov" id="resubmitModal" onclick="if(event.target===this)closeResubmitModal()">
+  <div class="resub-modal-box">
+    <div style="padding:16px 20px;border-bottom:1px solid #f0f0f0;display:flex;align-items:center;gap:10px;position:sticky;top:0;background:#fff;z-index:1;border-radius:20px 20px 0 0">
+      <button id="resubmitBackBtn" onclick="showResubmitList()" style="display:none;background:none;border:none;font-size:22px;cursor:pointer;padding:0 4px;color:#555">←</button>
+      <div id="resubmitTitle" style="font-size:16px;font-weight:700;color:#333">🔄 재제출할 숙제 선택</div>
+      <button onclick="closeResubmitModal()" style="margin-left:auto;background:none;border:none;font-size:22px;cursor:pointer;color:#bbb;line-height:1">✕</button>
+    </div>
+    <div id="resubmitListView" style="padding:4px 0"></div>
+    <div id="resubmitDetailView" style="display:none;padding:16px 20px">
+      <div id="resubmitHWInfo" style="background:#f8f8f8;border-radius:10px;padding:12px;margin-bottom:14px;font-size:13px;color:#555;line-height:1.7"></div>
+      <div style="font-size:13px;font-weight:700;color:#333;margin-bottom:8px">📸 이전 제출 사진</div>
+      <div id="resubmitOldPhotos" style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:16px"></div>
+      <div style="font-size:13px;font-weight:700;color:#333;margin-bottom:8px">📎 새 파일 업로드 <span style="font-weight:400;color:#888;font-size:12px">(기존 사진 대체)</span></div>
+      <div class="photo-upload-area" onclick="document.getElementById('resubmitFileInput').click()" style="margin-bottom:10px">
+        <div class="upload-icon">📎</div>
+        <p>여기를 눌러 파일 선택</p>
+        <small>사진·PDF, 최대 20개</small>
+      </div>
+      <input type="file" id="resubmitFileInput" accept="image/*,.pdf" multiple style="display:none" onchange="handleResubmitFiles(event)">
+      <div id="resubmitNewGrid" style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:12px"></div>
+      <label style="font-size:13px;font-weight:700;color:#333;margin-bottom:6px;display:block">✏️ 선생님께 메모 <span style="font-weight:400;color:#888;font-size:12px">(선택)</span></label>
+      <textarea id="resubmitMemo" rows="2" placeholder="재제출 사유나 메모를 남겨주세요" style="width:100%;padding:10px 12px;border:1.5px solid #e0e0e0;border-radius:10px;font-size:13px;font-family:inherit;resize:none;outline:none;margin-bottom:12px;box-sizing:border-box"></textarea>
+      <button id="resubmitSubmitBtn" onclick="doResubmit()" style="width:100%;padding:15px;background:#7c3aed;border:none;border-radius:12px;color:#fff;font-size:15px;font-weight:700;cursor:pointer">🔄 재제출하기</button>
+    </div>
   </div>
 </div>
 
@@ -293,6 +340,9 @@
     </button>
     <button class="type-btn" id="btnExt" onclick="selectType('extension')">
       📅 기한 연장 신청하기
+    </button>
+    <button class="type-btn" id="btnResub" onclick="openResubmitModal()" style="border-color:#c4b5fd;color:#5b21b6">
+      🔄 제출한 숙제 수정하기
     </button>
     <div class="error-msg" id="typeErr">제출 방식을 선택해주세요</div>
   </div>
@@ -682,7 +732,7 @@ document.getElementById('homeworkSelect').addEventListener('change', function() 
 async function loadStudentSubmissions(stuId) {
   window._mySubmissions = {};
   const { data } = await db.from('submissions')
-    .select('id, homework_id, submitted, submitted_at, rejection_status, rejection_reason, rejected_at')
+    .select('id, homework_id, submitted, submitted_at, rejection_status, rejection_reason, rejected_at, photo_urls, submit_memo, resubmit_count')
     .eq('student_id', stuId);
   (data || []).forEach(s => { window._mySubmissions[s.homework_id] = s; });
   checkRejections();
@@ -964,6 +1014,180 @@ function resetForm() {
 }
 
 // ============================================================
+//  재제출 모달
+// ============================================================
+let _resubmitHWId = null;
+let _resubmitNewPhotos = [];
+
+function openResubmitModal() {
+  _resubmitHWId = null;
+  _resubmitNewPhotos = [];
+  document.getElementById('resubmitModal').classList.add('show');
+  showResubmitList();
+}
+
+function closeResubmitModal() {
+  document.getElementById('resubmitModal').classList.remove('show');
+}
+
+function showResubmitList() {
+  const subs = window._mySubmissions || {};
+  const hws  = window._homeworks    || [];
+  document.getElementById('resubmitTitle').textContent = '🔄 재제출할 숙제 선택';
+  document.getElementById('resubmitBackBtn').style.display = 'none';
+  document.getElementById('resubmitListView').style.display = 'block';
+  document.getElementById('resubmitDetailView').style.display = 'none';
+
+  const submitted = hws.filter(hw => {
+    const s = subs[hw.id];
+    return s && s.submitted;
+  }).sort((a, b) => {
+    return (subs[b.id]?.submitted_at||'').localeCompare(subs[a.id]?.submitted_at||'');
+  });
+
+  const listEl = document.getElementById('resubmitListView');
+  if (!submitted.length) {
+    listEl.innerHTML = '<div style="text-align:center;color:#bbb;padding:28px;font-size:14px">제출한 숙제가 없습니다</div>';
+    return;
+  }
+  const DAYS = ['일','월','화','수','목','금','토'];
+  listEl.innerHTML = submitted.map(hw => {
+    const s = subs[hw.id];
+    const d = s.submitted_at ? new Date(new Date(s.submitted_at).getTime() + 9*3600000) : null;
+    const dateStr = d ? `${d.getUTCMonth()+1}/${d.getUTCDate()}(${DAYS[d.getUTCDay()]}) ${String(d.getUTCHours()).padStart(2,'0')}:${String(d.getUTCMinutes()).padStart(2,'0')}` : '-';
+    const photoCnt = (s.photo_urls||[]).length;
+    const rc = s.resubmit_count||0;
+    const rcBadge = rc>0 ? `<span style="background:#ede9fe;color:#5b21b6;padding:1px 7px;border-radius:10px;font-size:11px;font-weight:700;margin-left:6px">수정 ${rc}회</span>` : '';
+    return `<div class="resub-hw-item" onclick="selectResubmitHW('${hw.id}')">
+      <div style="min-width:0">
+        <div style="font-weight:700;color:#333;font-size:14px">${hw.subject}${rcBadge}</div>
+        <div style="font-size:12px;color:#888;margin-top:3px">기한: ${hw.due_date} · 제출: ${dateStr}</div>
+      </div>
+      <div style="display:flex;flex-direction:column;align-items:flex-end;gap:3px;flex-shrink:0">
+        ${photoCnt ? `<span style="font-size:12px;color:#aaa">📸 ${photoCnt}장</span>` : ''}
+        <span style="font-size:20px;color:#ccc">›</span>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function selectResubmitHW(hwId) {
+  const subs = window._mySubmissions || {};
+  const hws  = window._homeworks    || [];
+  const hw  = hws.find(h => h.id === hwId);
+  const sub = subs[hwId];
+  if (!hw || !sub) return;
+  _resubmitHWId = hwId;
+  _resubmitNewPhotos = [];
+
+  document.getElementById('resubmitTitle').textContent = hw.subject;
+  document.getElementById('resubmitBackBtn').style.display = 'block';
+  document.getElementById('resubmitListView').style.display = 'none';
+  document.getElementById('resubmitDetailView').style.display = 'block';
+
+  const cls    = _loggedStudent ? _loggedStudent.class : document.getElementById('classSelect').value;
+  const clsObj = (hw.homework_classes||[]).find(c=>c.class_name===cls) || (hw.homework_classes||[])[0];
+  document.getElementById('resubmitHWInfo').innerHTML =
+    `📖 교재: <strong>${clsObj?.textbook||'-'}</strong>${clsObj?.problem_count?` (${clsObj.problem_count}문제)`:''}` +
+    `<br>📝 내용: <strong>${clsObj?.content||'-'}</strong>` +
+    `<br>📅 기한: <strong>${hw.due_date}</strong>`;
+
+  const photos = sub.photo_urls || [];
+  const oldEl  = document.getElementById('resubmitOldPhotos');
+  oldEl.innerHTML = photos.length
+    ? photos.map(url => `<img src="${url}" style="width:80px;height:80px;object-fit:cover;border-radius:8px;border:2px solid #e0e0e0;cursor:pointer" onclick="window.open('${url}','_blank')">`).join('')
+    : '<div style="color:#bbb;font-size:13px;padding:8px 0">이전 제출 사진 없음</div>';
+
+  document.getElementById('resubmitNewGrid').innerHTML = '';
+  document.getElementById('resubmitMemo').value = sub.submit_memo || '';
+  const btn = document.getElementById('resubmitSubmitBtn');
+  btn.disabled = false;
+  btn.textContent = '🔄 재제출하기';
+}
+
+function handleResubmitFiles(e) {
+  [...e.target.files].forEach(f => {
+    if (_resubmitNewPhotos.length >= 20) return;
+    _resubmitNewPhotos.push({ file: f, url: URL.createObjectURL(f) });
+  });
+  renderResubmitNewGrid();
+  e.target.value = '';
+}
+
+function renderResubmitNewGrid() {
+  const grid = document.getElementById('resubmitNewGrid');
+  grid.innerHTML = _resubmitNewPhotos.map((p, i) => `
+    <div style="position:relative">
+      <img src="${p.url}" style="width:80px;height:80px;object-fit:cover;border-radius:8px;border:2px solid #7c3aed">
+      <button onclick="removeResubmitPhoto(${i})" style="position:absolute;top:-6px;right:-6px;background:#ef4444;color:#fff;border:none;border-radius:50%;width:22px;height:22px;font-size:13px;cursor:pointer;display:flex;align-items:center;justify-content:center;padding:0">×</button>
+    </div>`).join('');
+}
+
+function removeResubmitPhoto(i) {
+  _resubmitNewPhotos.splice(i, 1);
+  renderResubmitNewGrid();
+}
+
+async function doResubmit() {
+  if (!_resubmitHWId) return;
+  if (!_resubmitNewPhotos.length) { alert('새 파일을 최소 1개 이상 선택해주세요.'); return; }
+  const subs = window._mySubmissions || {};
+  const sub  = subs[_resubmitHWId];
+  if (!sub) return;
+
+  const btn = document.getElementById('resubmitSubmitBtn');
+  btn.disabled = true; btn.textContent = '업로드 중...';
+
+  try {
+    const studentId = _loggedStudent?.id || document.getElementById('nameSelect').value;
+    const hwId = _resubmitHWId;
+    const photoUrls = [];
+
+    for (let i = 0; i < _resubmitNewPhotos.length; i++) {
+      const file = _resubmitNewPhotos[i].file;
+      const ext  = file.name.split('.').pop() || 'jpg';
+      const path = `submissions/${hwId}/${studentId}_${Date.now()}_${i}.${ext}`;
+      const { error } = await db.storage.from(BUCKET_NAME).upload(path, file, { upsert: true });
+      if (error) throw error;
+      const { data: urlData } = db.storage.from(BUCKET_NAME).getPublicUrl(path);
+      photoUrls.push(urlData.publicUrl);
+    }
+
+    const memo     = document.getElementById('resubmitMemo').value.trim();
+    const newCount = (sub.resubmit_count || 0) + 1;
+    const wasRejected = sub.rejection_status === 'rejected';
+
+    await db.from('submissions').update({
+      photo_urls: photoUrls,
+      submitted_at: new Date().toISOString(),
+      submit_memo: memo,
+      reviewed: false,
+      resubmit_count: newCount,
+      rejection_status: wasRejected ? 'resubmitted' : null
+    }).eq('id', sub.id);
+
+    // 로컬 캐시 업데이트
+    window._mySubmissions[hwId] = {
+      ...sub, photo_urls: photoUrls,
+      submitted_at: new Date().toISOString(),
+      submit_memo: memo, reviewed: false,
+      resubmit_count: newCount,
+      rejection_status: wasRejected ? 'resubmitted' : null
+    };
+
+    closeResubmitModal();
+    document.getElementById('successIcon').textContent  = '🔄';
+    document.getElementById('successTitle').textContent = '수정 제출 완료!';
+    document.getElementById('successMsg').innerHTML =
+      `숙제가 수정되어 다시 전달되었습니다.<br>선생님 확인을 기다려 주세요! 😊`;
+    showSuccess();
+  } catch (err) {
+    btn.disabled = false; btn.textContent = '🔄 재제출하기';
+    alert('오류가 발생했습니다: ' + err.message);
+  }
+}
+
+// ============================================================
 //  제출 이력
 // ============================================================
 let _historyOpen = false;
@@ -981,10 +1205,17 @@ function renderHistory() {
   const hws = window._homeworks || [];
   const subs = window._mySubmissions || {};
   const list = document.getElementById('historyList');
+  const enrolledAt = _loggedStudent?.enrolled_at || null;
 
   const submitted = hws.filter(hw => {
     const s = subs[hw.id];
-    return s && s.submitted;
+    if (!s || !s.submitted) return false;
+    // 등록일 이전 숙제는 이력에서 제외
+    if (enrolledAt) {
+      const hwDate = hw.assign_date || hw.due_date || '';
+      if (hwDate < enrolledAt) return false;
+    }
+    return true;
   }).sort((a, b) => {
     const ta = subs[a.id]?.submitted_at || '';
     const tb = subs[b.id]?.submitted_at || '';

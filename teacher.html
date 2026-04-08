@@ -521,6 +521,7 @@ function checkPw() {
         <div class="col-6"><label style="font-size:13px;font-weight:500;color:var(--text-sub);display:block;margin-bottom:4px">반 *</label><input type="text" class="fc" id="stuClass" placeholder="예: 고1B2"></div>
       </div>
       <div class="mb-3"><label style="font-size:13px;font-weight:500;color:var(--text-sub);display:block;margin-bottom:4px">연락처</label><input type="text" class="fc" id="stuPhone" placeholder="010-0000-0000"></div>
+      <div class="mb-3"><label style="font-size:13px;font-weight:500;color:var(--text-sub);display:block;margin-bottom:4px">반 등록일 <span style="font-weight:400;color:var(--text-muted)">(신입생이면 입력 — 이전 숙제 명단 제외)</span></label><input type="date" class="fc" id="stuEnrolled"></div>
     </div>
     <div class="modal-ft"><button class="btn-o" onclick="closeModal('stuModal')">취소</button><button class="btn-p" onclick="saveStu()">저장</button></div>
   </div>
@@ -666,8 +667,27 @@ function fmtHdr(d) { if(!d) return ''; const dt=new Date(d+'T00:00:00'); return 
 function fmtDue(d) { if(!d) return ''; const dt=new Date(d+'T00:00:00'); return `${String(dt.getFullYear()).slice(2)}.${String(dt.getMonth()+1).padStart(2,'0')}.${String(dt.getDate()).padStart(2,'0')}(${DAYS[dt.getDay()]})`; }
 function hwCls(hw) { return (hw.homework_classes||[]).map(c=>c.class_name); }
 function subClass(s) { return {수학:'#e0e7ff|#3730a3',영어:'#dcfce7|#166534',국어:'#fce7f3|#9d174d',과학:'#fef3c7|#92400e',사회:'#f0fdf4|#15803d'}[s]||'#f3f4f6|#4b5563'; }
-function getSubRate(hwId) { const hw=_homeworks.find(h=>h.id===hwId); const cls=hw?hwCls(hw):[]; const rel=cls.length?_students.filter(s=>cls.includes(s.class)):_students; if(!rel.length) return 0; const sub=_submissions[hwId]||{}; return Math.round(rel.filter(s=>sub[s.id]?.submitted).length/rel.length*100); }
-function getStuRate(stuId) { const rel=_homeworks.filter(h=>hwCls(h).length===0||hwCls(h).includes(_students.find(s=>s.id===stuId)?.class)); if(!rel.length) return 0; let c=0; rel.forEach(h=>{if(_submissions[h.id]?.[stuId]?.submitted)c++;}); return Math.round(c/rel.length*100); }
+// 학생이 해당 숙제 시점에 반에 속해 있었는지 (enrolled_at 기준)
+function isStuActive(stu, hw) {
+  if (!stu || !stu.enrolled_at) return true; // 등록일 없으면 항상 포함
+  return stu.enrolled_at <= (hw.assign_date || hw.due_date || '');
+}
+function getSubRate(hwId) {
+  const hw = _homeworks.find(h=>h.id===hwId);
+  const cls = hw ? hwCls(hw) : [];
+  const rel = cls.length ? _students.filter(s=>cls.includes(s.class)) : _students;
+  const active = hw ? rel.filter(s=>isStuActive(s,hw)) : rel;
+  if (!active.length) return 0;
+  const sub = _submissions[hwId]||{};
+  return Math.round(active.filter(s=>sub[s.id]?.submitted).length/active.length*100);
+}
+function getStuRate(stuId) {
+  const stu = _students.find(s=>s.id===stuId);
+  const rel = _homeworks.filter(h=>(hwCls(h).length===0||hwCls(h).includes(stu?.class)) && isStuActive(stu,h));
+  if (!rel.length) return 0;
+  let c=0; rel.forEach(h=>{if(_submissions[h.id]?.[stuId]?.submitted)c++;});
+  return Math.round(c/rel.length*100);
+}
 function getStuAvg(stuId) { let sc=[]; _homeworks.forEach(h=>{const s=_submissions[h.id]?.[stuId];if(s&&s.score!==null&&s.score!==undefined)sc.push(Number(s.score));}); return sc.length?Math.round(sc.reduce((a,b)=>a+b,0)/sc.length):null; }
 function uid() { return crypto.randomUUID ? crypto.randomUUID() : Date.now().toString(36)+Math.random().toString(36).slice(2); }
 // UTC → 한국시간(KST, +9) 변환
@@ -801,12 +821,14 @@ function getClassRate(cls) {
   const classHWs = _homeworks.filter(h => hwCls(h).length===0 || hwCls(h).includes(cls));
   const classStudents = _students.filter(s => s.class === cls);
   if (!classStudents.length || !classHWs.length) return 0;
-  let submitted = 0, total = classStudents.length * classHWs.length;
+  let submitted = 0, total = 0;
   classHWs.forEach(hw => {
+    const active = classStudents.filter(s => isStuActive(s, hw));
+    total += active.length;
     const sub = _submissions[hw.id] || {};
-    classStudents.forEach(s => { if(sub[s.id]?.submitted) submitted++; });
+    active.forEach(s => { if(sub[s.id]?.submitted) submitted++; });
   });
-  return Math.round(submitted / total * 100);
+  return total ? Math.round(submitted / total * 100) : 0;
 }
 
 function showMissingPopup() {
@@ -822,7 +844,7 @@ function showMissingPopup() {
   activeHWs.forEach(hw => {
     const sub = _submissions[hw.id] || {};
     (hw.homework_classes||[]).forEach(clsObj => {
-      const missing = _students.filter(s => s.class === clsObj.class_name && !sub[s.id]?.submitted);
+      const missing = _students.filter(s => s.class === clsObj.class_name && isStuActive(s,hw) && !sub[s.id]?.submitted);
       if (!missing.length) return;
       totalMissing += missing.length;
       html += `<div style="background:var(--gray-50);border-radius:10px;padding:12px;margin-bottom:10px">
@@ -870,8 +892,9 @@ function renderDashboard() {
   let r7Sub=0, r7Total=0;
   recentHWs.forEach(hw=>{
     const relStu = hwCls(hw).length ? _students.filter(s=>hwCls(hw).includes(s.class)) : _students;
+    const activeStu = relStu.filter(s=>isStuActive(s,hw));
     const sub = _submissions[hw.id]||{};
-    relStu.forEach(s=>{ r7Total++; if(sub[s.id]?.submitted) r7Sub++; });
+    activeStu.forEach(s=>{ r7Total++; if(sub[s.id]?.submitted) r7Sub++; });
   });
   const avgRate = r7Total ? Math.round(r7Sub/r7Total*100) : 0;
   document.getElementById('dSubmitRate').textContent = avgRate + '%';
@@ -881,7 +904,8 @@ function renderDashboard() {
   activeHWs.forEach(hw => {
     const sub = _submissions[hw.id] || {};
     (hw.homework_classes||[]).forEach(clsObj => {
-      _students.filter(s => s.class === clsObj.class_name).forEach(s => { if(!sub[s.id]?.submitted) missingCnt++; });
+      _students.filter(s => s.class === clsObj.class_name && isStuActive(s,hw))
+        .forEach(s => { if(!sub[s.id]?.submitted) missingCnt++; });
     });
   });
   document.getElementById('dMissing').textContent = missingCnt;
@@ -904,9 +928,14 @@ function renderDashboard() {
     const cHWs=activeHWs.filter(h=>hwCls(h).length===0||hwCls(h).includes(cls));
     const cStu=_students.filter(s=>s.class===cls);
     if(!cHWs.length||!cStu.length) return 0;
-    let sub=0,tot=cStu.length*cHWs.length;
-    cHWs.forEach(hw=>{const s=_submissions[hw.id]||{};cStu.forEach(st=>{if(s[st.id]?.submitted)sub++;});});
-    return Math.round(sub/tot*100);
+    let sub=0,tot=0;
+    cHWs.forEach(hw=>{
+      const active=cStu.filter(s=>isStuActive(s,hw));
+      tot+=active.length;
+      const s=_submissions[hw.id]||{};
+      active.forEach(st=>{if(s[st.id]?.submitted)sub++;});
+    });
+    return tot?Math.round(sub/tot*100):0;
   });
   makeChart('chartCls',{type:'bar',data:{labels:classes.map(c=>c+'반'),datasets:[{label:'제출률(%)',data:activeCls,backgroundColor:classes.map((_,i)=>colors[i%colors.length]),borderRadius:6,borderSkipped:false}]},options:{plugins:{legend:{display:false}},scales:{y:{min:0,max:100,ticks:{callback:v=>v+'%'}}},responsive:true}});
   // 최근 7일 반별 일별 차트
@@ -1697,8 +1726,8 @@ async function resetParentPw() {
 function openStuModal(id){
   document.getElementById('stuEditId').value=id||'';
   document.getElementById('stuModalTitle').textContent=id?'학생 수정':'학생 추가';
-  if(id){const s=_students.find(x=>x.id===id);if(s){document.getElementById('stuName').value=s.name;document.getElementById('stuClass').value=s.class;document.getElementById('stuPhone').value=s.phone||'';}}
-  else['stuName','stuClass','stuPhone'].forEach(x=>document.getElementById(x).value='');
+  if(id){const s=_students.find(x=>x.id===id);if(s){document.getElementById('stuName').value=s.name;document.getElementById('stuClass').value=s.class;document.getElementById('stuPhone').value=s.phone||'';document.getElementById('stuEnrolled').value=s.enrolled_at||'';}}
+  else['stuName','stuClass','stuPhone','stuEnrolled'].forEach(x=>document.getElementById(x).value='');
   openModal('stuModal');
 }
 
@@ -1707,10 +1736,11 @@ async function saveStu(){
   const cls=document.getElementById('stuClass').value.trim();
   if(!name||!cls){toast('이름과 반은 필수입니다','danger');return;}
   const phone=document.getElementById('stuPhone').value.trim();
+  const enrolled=document.getElementById('stuEnrolled').value||null;
   const editId=document.getElementById('stuEditId').value;
   try{
-    if(editId){await db.from('students').update({name,class:cls,phone}).eq('id',editId);toast('수정되었습니다');}
-    else{await db.from('students').insert({name,class:cls,phone});toast('학생이 추가되었습니다');}
+    if(editId){await db.from('students').update({name,class:cls,phone,enrolled_at:enrolled}).eq('id',editId);toast('수정되었습니다');}
+    else{await db.from('students').insert({name,class:cls,phone,enrolled_at:enrolled});toast('학생이 추가되었습니다');}
     await loadStudents(); closeModal('stuModal'); renderStudents(); populateSelects();
   }catch(e){toast('오류: '+e.message,'danger');}
 }
@@ -1870,7 +1900,7 @@ function updateMissingBadge() {
   let cnt = 0;
   hws.forEach(hw => {
     (hw.homework_classes||[]).forEach(clsObj => {
-      const stus = _students.filter(s=>s.class===clsObj.class_name);
+      const stus = _students.filter(s=>s.class===clsObj.class_name && isStuActive(s,hw));
       const sub = _submissions[hw.id]||{};
       cnt += stus.filter(s=>!sub[s.id]?.submitted).length;
     });
@@ -1911,7 +1941,7 @@ function renderDashMissing() {
   hws.forEach(hw => {
     (hw.homework_classes||[]).forEach(clsObj => {
       const cls=clsObj.class_name;
-      const stus=_students.filter(s=>s.class===cls);
+      const stus=_students.filter(s=>s.class===cls && isStuActive(s,hw));
       const sub=_submissions[hw.id]||{};
       const missing=stus.filter(s=>!sub[s.id]?.submitted);
       anyMissing = anyMissing || missing.length>0;
@@ -1985,8 +2015,10 @@ function renderMissing() {
     const classHWs = hws.filter(h=>hwCls(h).length===0||hwCls(h).includes(cls));
     if(!classHWs.length||!classStu.length) return;
     classHWs.forEach(hw => {
+      const activeStu = classStu.filter(s => isStuActive(s, hw)); // 등록일 이후 학생만
+      if (!activeStu.length) return;
       const sub = _submissions[hw.id]||{};
-      const missing = classStu.filter(s=>!sub[s.id]?.submitted);
+      const missing = activeStu.filter(s=>!sub[s.id]?.submitted);
       const clsObj = (hw.homework_classes||[]).find(c=>c.class_name===cls)||(hw.homework_classes||[])[0];
       const tb = clsObj?.textbook||hw.subject||'-';
       totalMissing += missing.length;
@@ -1994,7 +2026,7 @@ function renderMissing() {
       html += `<div class="card-c mb-3">
         <div class="card-h d-flex justify-content-between align-items-center">
           <span><span class="sub-badge">${cls}반</span> &nbsp;<strong>${tb}</strong></span>
-          <span style="font-size:12px;color:var(--text-muted)">${hw.due_date} 기한 ${isOverdue?'<span style="color:var(--danger);font-weight:600">마감초과</span>':getDueBadge(hw.due_date)}&nbsp;·&nbsp;미제출 <strong style="color:var(--danger)">${missing.length}</strong>/${classStu.length}명</span>
+          <span style="font-size:12px;color:var(--text-muted)">${hw.due_date} 기한 ${isOverdue?'<span style="color:var(--danger);font-weight:600">마감초과</span>':getDueBadge(hw.due_date)}&nbsp;·&nbsp;미제출 <strong style="color:var(--danger)">${missing.length}</strong>/${activeStu.length}명</span>
         </div>
         <div style="padding:14px 20px">
           ${missing.length===0
@@ -2025,7 +2057,7 @@ function renderHistory() {
   if(!stuId){el.innerHTML='<div class="empty-st"><span class="empty-ic">📋</span>학생을 선택하세요</div>';return;}
   const stu = _students.find(s=>s.id===stuId);
   if(!stu) return;
-  const myHWs = _homeworks.filter(h=>hwCls(h).length===0||hwCls(h).includes(stu.class));
+  const myHWs = _homeworks.filter(h=>(hwCls(h).length===0||hwCls(h).includes(stu.class)) && isStuActive(stu,h));
   let submitted=0; const scores=[];
   const rows = myHWs.map(hw => {
     const sub=(_submissions[hw.id]||{})[stuId];
@@ -2182,7 +2214,7 @@ async function generateDailyMsg() {
       relevantCls.forEach(cls => {
         if(!clsMap[cls]) clsMap[cls] = { noHW: true, missing: [] };
         clsMap[cls].noHW = false;
-        _students.filter(s=>s.class===cls).forEach(s => {
+        _students.filter(s=>s.class===cls && isStuActive(s,hw)).forEach(s => {
           const sub = (_submissions[hw.id]||{})[s.id];
           let isMissing;
           if (cutoff) {

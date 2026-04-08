@@ -294,7 +294,7 @@ function checkPw() {
       <select class="fc" style="width:auto" id="photoFilterClass" onchange="renderPhotos()"><option value="">전체 반</option></select>
       <select class="fc" style="width:auto" id="photoFilterReview" onchange="renderPhotos()">
         <option value="">전체</option><option value="false">미확인</option><option value="true">확인 완료</option>
-        <option value="rejected">❌ 반려</option><option value="resubmitted">🔄 재제출</option>
+        <option value="rejected">❌ 반려</option><option value="resubmitted">🔄 재제출(반려후)</option><option value="resubmit_voluntary">✏️ 수정제출</option>
       </select>
       <button class="btn-o" onclick="clearPhotoDate()">전체 날짜</button>
       <button class="btn-o" style="margin-left:auto" onclick="loadPhotos()">🔄 새로고침</button>
@@ -1013,6 +1013,7 @@ function renderPhotos() {
     if (clsFilter && s.students?.class!==clsFilter) return false;
     if (revFilter==='rejected') return s.rejection_status==='rejected';
     if (revFilter==='resubmitted') return s.rejection_status==='resubmitted';
+    if (revFilter==='resubmit_voluntary') return (s.resubmit_count||0)>0 && s.rejection_status!=='rejected' && s.rejection_status!=='resubmitted';
     if (revFilter==='false') return !s.reviewed && s.rejection_status!=='rejected';
     if (revFilter==='true') return s.reviewed && !s.rejection_status;
     return true;
@@ -1053,14 +1054,27 @@ function getStatusCell(s) {
   }
   if (s.rejection_status === 'resubmitted') {
     return `<div>
-      <span style="background:#ede9fe;color:#5b21b6;padding:2px 8px;border-radius:99px;font-size:11px;font-weight:700">🔄 재제출</span>
+      <span style="background:#ede9fe;color:#5b21b6;padding:2px 8px;border-radius:99px;font-size:11px;font-weight:700">🔄 재제출(반려후)</span>
       <div class="d-flex gap-1 mt-1">
         <button class="btn-o review-btn" onclick="markReviewed('${s.id}',true)">✅ 확인</button>
         <button class="btn-o review-btn" style="color:#ef4444;border-color:#fca5a5" onclick="rejectSubmission('${s.id}')">❌ 반려</button>
       </div>
     </div>`;
   }
-  if (s.reviewed) return '<span class="reviewed-badge">✓ 확인 완료</span>';
+  const rc = s.resubmit_count || 0;
+  if (rc > 0 && !s.reviewed) {
+    return `<div>
+      <span style="background:#fef3c7;color:#92400e;padding:2px 8px;border-radius:99px;font-size:11px;font-weight:700">✏️ 수정제출 ${rc}회</span>
+      <div class="d-flex gap-1 mt-1">
+        <button class="btn-o review-btn" onclick="markReviewed('${s.id}')">✅ 확인</button>
+        <button class="btn-o review-btn" style="color:#ef4444;border-color:#fca5a5" onclick="rejectSubmission('${s.id}')">❌ 반려</button>
+      </div>
+    </div>`;
+  }
+  if (s.reviewed) {
+    const rcBadge = rc > 0 ? `<span style="background:#fef3c7;color:#92400e;padding:1px 6px;border-radius:10px;font-size:10px;font-weight:700;margin-left:4px">수정 ${rc}회</span>` : '';
+    return `<span class="reviewed-badge">✓ 확인 완료</span>${rcBadge}`;
+  }
   return `<div class="d-flex gap-1">
     <button class="btn-o review-btn" onclick="markReviewed('${s.id}')">✅ 확인</button>
     <button class="btn-o review-btn" style="color:#ef4444;border-color:#fca5a5" onclick="rejectSubmission('${s.id}')">❌ 반려</button>
@@ -1538,6 +1552,11 @@ function renderMessages() {
       const allInCls=_students.filter(s=>s.class===cls);
       const selStu=allInCls.filter(s=>window._msgStudents[item.hw.id]?.has(s.id));
       return {...item,students:selStu};
+    }).sort((a,b)=>{
+      // 메시지 내 블록은 기한 빠른 순 (오름차순)
+      const ak=(a.hw.due_date||'')+(a.hw.due_time||'');
+      const bk=(b.hw.due_date||'')+(b.hw.due_time||'');
+      return ak.localeCompare(bk);
     });
     window._msgs[cls]=generateCombinedMsg(cls,hwListWithStu);
   });

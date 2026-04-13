@@ -246,6 +246,7 @@ function checkPw() {
   <div style="position:absolute;bottom:16px;left:0;right:0;padding:0 8px;display:flex;flex-direction:column;gap:6px">
     <a href="student.html" target="_blank" style="display:block;background:#FEE500;color:#3C1E1E;text-align:center;padding:10px;border-radius:8px;font-size:13px;font-weight:700;text-decoration:none;white-space:nowrap">📱 학생 제출 페이지</a>
     <button onclick="toggleDark()" id="darkToggleBtn" style="border:1px solid var(--border);background:var(--card);color:var(--text);border-radius:8px;padding:9px;font-size:13px;cursor:pointer;width:100%;white-space:nowrap">🌙 다크 모드</button>
+    <button onclick="teacherLogout()" style="border:1px solid var(--border);background:var(--card);color:var(--text-muted);border-radius:8px;padding:9px;font-size:12px;cursor:pointer;width:100%;white-space:nowrap">🔓 로그아웃</button>
   </div>
 </div>
 
@@ -277,8 +278,7 @@ function checkPw() {
         </div>
         <div id="dashMissing" style="padding:4px 0;max-height:300px;overflow-y:auto"></div>
       </div></div>
-      <div class="col-md-6"><div class="card-c"><div class="card-h">📊 반별 제출률 <span style="font-size:11px;color:var(--text-muted);font-weight:400">(오늘/어제 기준)</span></div><div style="padding:16px"><canvas id="chartCls" height="220"></canvas></div></div></div>
-      <div class="col-md-6"><div class="card-c"><div class="card-h">📅 최근 7일 반별 제출 현황</div><div style="padding:16px"><canvas id="chartWeek" height="220"></canvas></div></div></div>
+      <div class="col-md-12"><div class="card-c"><div class="card-h d-flex justify-content-between align-items-center"><span>📊 반별 제출 현황 <span style="font-size:11px;color:var(--text-muted);font-weight:400">(최근 30일 · 공지일 기준)</span></span><span id="chartTodayRates" style="font-size:12px;color:var(--text-sub)"></span></div><div style="padding:16px"><canvas id="chartWeek" height="100"></canvas></div></div></div>
     </div>
   </div>
 
@@ -612,9 +612,12 @@ let lbImages=[], lbIdx=0;
 let clsRowCnt=0;
 
 // ---- Login ----
+const TEACHER_AUTH_KEY = 'teacherAuth_v1';
+
 function checkPw() {
   const v = document.getElementById('pwInput').value;
   if (v === TEACHER_PW) {
+    localStorage.setItem(TEACHER_AUTH_KEY, '1');
     document.getElementById('loginScreen').style.display='none';
     init();
   } else {
@@ -622,7 +625,17 @@ function checkPw() {
     document.getElementById('pwInput').value='';
   }
 }
+function teacherLogout() {
+  localStorage.removeItem(TEACHER_AUTH_KEY);
+  location.reload();
+}
 document.getElementById('pwInput').addEventListener('keydown', e=>{ if(e.key==='Enter') checkPw(); });
+
+// 자동 로그인
+if (localStorage.getItem(TEACHER_AUTH_KEY) === '1') {
+  document.getElementById('loginScreen').style.display='none';
+  document.addEventListener('DOMContentLoaded', ()=>{ if(typeof init==='function') init(); });
+}
 
 // ---- Init ----
 async function init() {
@@ -937,23 +950,54 @@ function renderDashboard() {
     });
     return tot?Math.round(sub/tot*100):0;
   });
-  makeChart('chartCls',{type:'bar',data:{labels:classes.map(c=>c+'반'),datasets:[{label:'제출률(%)',data:activeCls,backgroundColor:classes.map((_,i)=>colors[i%colors.length]),borderRadius:6,borderSkipped:false}]},options:{plugins:{legend:{display:false}},scales:{y:{min:0,max:100,ticks:{callback:v=>v+'%'}}},responsive:true}});
-  // 최근 7일 반별 일별 차트
+  // 오늘/어제 반별 제출률 → 헤더 요약 텍스트
+  const todayRateStr = classes.map((cls,i) => {
+    const color = ['#4f46e5','#10b981','#f59e0b','#ef4444','#8b5cf6','#ec4899'][i%6];
+    return `<span style="color:${color};font-weight:700">${cls}반 ${activeCls[i]}%</span>`;
+  }).join(' &nbsp;|&nbsp; ');
+  const trEl = document.getElementById('chartTodayRates');
+  if (trEl) trEl.innerHTML = `오늘기준 &nbsp; ${todayRateStr}`;
+
+  // 최근 30일 반별 일별 차트 (공지일 기준)
   const days=[]; const dayLabels=[];
-  for(let i=6;i>=0;i--){const d=new Date(Date.now()-i*86400000);days.push(d.toISOString().slice(0,10));dayLabels.push(`${d.getMonth()+1}/${d.getDate()}(${DAYS[d.getDay()]})`);}
+  for(let i=29;i>=0;i--){
+    const d=new Date(Date.now()-i*86400000);
+    days.push(d.toISOString().slice(0,10));
+    // 7일마다 or 1일·15일만 날짜 표시 (너무 촘촘하지 않게)
+    dayLabels.push(`${d.getMonth()+1}/${d.getDate()}`);
+  }
   const weekDatasets=classes.map((cls,ci)=>({
     label:cls+'반',
     data:days.map(day=>{
       const dayHWs=_homeworks.filter(h=>h.assign_date===day&&(hwCls(h).length===0||hwCls(h).includes(cls)));
       const clsStudents=_students.filter(s=>s.class===cls);
-      if(!dayHWs.length||!clsStudents.length)return null;
-      let submitted=0,total=clsStudents.length*dayHWs.length;
-      dayHWs.forEach(hw=>{const sub=_submissions[hw.id]||{};clsStudents.forEach(s=>{if(sub[s.id]?.submitted)submitted++;});});
-      return Math.round(submitted/total*100);
+      if(!dayHWs.length||!clsStudents.length) return null;
+      let submitted=0, total=0;
+      dayHWs.forEach(hw=>{
+        const active=clsStudents.filter(s=>isStuActive(s,hw));
+        total+=active.length;
+        const sub=_submissions[hw.id]||{};
+        active.forEach(s=>{if(sub[s.id]?.submitted)submitted++;});
+      });
+      return total ? Math.round(submitted/total*100) : null;
     }),
-    borderColor:colors[ci%colors.length].replace('.7','1'),backgroundColor:colors[ci%colors.length],tension:.3,fill:false,spanGaps:true
+    borderColor:colors[ci%colors.length].replace('.7','1'),
+    backgroundColor:colors[ci%colors.length],
+    tension:.3, fill:false, spanGaps:true,
+    pointRadius:4, pointHoverRadius:7
   }));
-  makeChart('chartWeek',{type:'line',data:{labels:dayLabels,datasets:weekDatasets},options:{plugins:{legend:{position:'bottom'}},scales:{y:{max:100,min:0,ticks:{callback:v=>v+'%'}}},responsive:true}});
+  makeChart('chartWeek',{
+    type:'line',
+    data:{labels:dayLabels,datasets:weekDatasets},
+    options:{
+      plugins:{legend:{position:'bottom'}},
+      scales:{
+        y:{max:100,min:0,ticks:{callback:v=>v+'%'}},
+        x:{ticks:{maxTicksLimit:15,autoSkip:true}}
+      },
+      responsive:true
+    }
+  });
 }
 
 // ---- PHOTOS ----
@@ -1962,9 +2006,13 @@ function renderDashMissing() {
 }
 
 // ---- MISSING ----
-function loadMissing() {
+async function loadMissing() {
+  const btn = document.querySelector('#page-missing .btn-o[onclick="loadMissing()"]');
+  if (btn) { btn.textContent = '⏳ 로딩중...'; btn.disabled = true; }
+  await loadSubmissions();
   populateSelects();
   renderMissing();
+  if (btn) { btn.textContent = '🔄 새로고침'; btn.disabled = false; }
 }
 
 function missingDateChanged() {

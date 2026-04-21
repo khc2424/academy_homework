@@ -1672,10 +1672,14 @@ function renderMessages() {
   // 숙제별 학생 초기 선택 상태 초기화 (없는 것만)
   if(!window._msgStudents)window._msgStudents={};
   classes.forEach(cls=>{
-    (_students.filter(s=>s.class===cls)).forEach(s=>{/* ensure structure */});
     window._classMap[cls].forEach(({hw})=>{
       if(!window._msgStudents[hw.id]){
-        window._msgStudents[hw.id]=new Set(_students.filter(s=>s.class===cls).map(s=>s.id));
+        // 기본값: 해당 숙제에 배부된 학생만 (excluded_student_ids 제외)
+        const clsObj=(hw.homework_classes||[]).find(c=>c.class_name===cls);
+        const excl=clsObj?.excluded_student_ids||[];
+        window._msgStudents[hw.id]=new Set(
+          _students.filter(s=>s.class===cls&&(excl.length===0||!excl.includes(s.id))).map(s=>s.id)
+        );
       }
     });
   });

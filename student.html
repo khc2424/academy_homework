@@ -254,7 +254,7 @@
       <div class="photo-upload-area" onclick="document.getElementById('resubmitFileInput').click()" style="margin-bottom:10px">
         <div class="upload-icon">📎</div>
         <p>여기를 눌러 파일 선택</p>
-        <small>사진·PDF, 최대 20개</small>
+        <small>사진·PDF, 최대 50개</small>
       </div>
       <input type="file" id="resubmitFileInput" accept="image/*,.pdf" multiple style="display:none" onchange="handleResubmitFiles(event)">
       <div id="resubmitNewGrid" style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:12px"></div>
@@ -349,7 +349,7 @@
 
   <!-- Step 3-A: 파일 첨부 (제출 선택 시) -->
   <div class="card" id="cardFiles" style="display:none">
-    <div class="card-title"><span class="step-badge">3</span> 파일 첨부 <span style="font-size:12px;font-weight:400;color:#888">(사진·PDF, 최대 20개)</span></div>
+    <div class="card-title"><span class="step-badge">3</span> 파일 첨부 <span style="font-size:12px;font-weight:400;color:#888">(사진·PDF, 최대 50개)</span></div>
     <div class="photo-upload-area" id="uploadArea" onclick="document.getElementById('photoInput').click()">
       <div class="upload-icon">📎</div>
       <p>여기를 눌러 파일 선택</p>
@@ -678,6 +678,11 @@ function updateHomeworkSelect(cls) {
     const clsObjs = hw.homework_classes || [];
     const clsNames = clsObjs.map(c => c.class_name);
     if (cls && clsNames.length && !clsNames.includes(cls)) return;
+    // 지정 제외된 학생이면 숨김
+    if (_loggedStudent) {
+      const clsObj = clsObjs.find(c=>c.class_name===_loggedStudent.class);
+      if (clsObj && (clsObj.excluded_student_ids||[]).includes(_loggedStudent.id)) return;
+    }
     // 이미 제출 완료된 숙제는 숨김 (반려된 건 재제출을 위해 유지)
     const sub = mySubs[hw.id];
     if (sub && sub.submitted && sub.rejection_status !== 'rejected') return;
@@ -791,8 +796,8 @@ function compressImage(file) {
 
 async function handlePhotos(event) {
   const files = [...event.target.files];
-  const remaining = 20 - selectedPhotos.length;
-  if (remaining <= 0) { alert('파일은 최대 20개까지 첨부할 수 있어요'); return; }
+  const remaining = 50 - selectedPhotos.length;
+  if (remaining <= 0) { alert('파일은 최대 50개까지 첨부할 수 있어요'); return; }
   const toAdd = files.slice(0, remaining);
   for (const file of toAdd) {
     const isPdf = file.type === 'application/pdf';
@@ -824,7 +829,7 @@ function renderPhotoGrid() {
       <button class="photo-remove" onclick="removePhoto(${i})">✕</button>
     </div>`).join('');
   const area = document.getElementById('uploadArea');
-  area.style.display = selectedPhotos.length >= 20 ? 'none' : 'block';
+  area.style.display = selectedPhotos.length >= 50 ? 'none' : 'block';
 }
 
 function removePhoto(idx) {
@@ -1107,7 +1112,7 @@ function selectResubmitHW(hwId) {
 
 function handleResubmitFiles(e) {
   [...e.target.files].forEach(f => {
-    if (_resubmitNewPhotos.length >= 20) return;
+    if (_resubmitNewPhotos.length >= 50) return;
     _resubmitNewPhotos.push({ file: f, url: URL.createObjectURL(f) });
   });
   renderResubmitNewGrid();
@@ -1214,6 +1219,11 @@ function renderHistory() {
     if (enrolledAt) {
       const hwDate = hw.assign_date || hw.due_date || '';
       if (hwDate < enrolledAt) return false;
+    }
+    // 지정 제외된 학생이면 제외
+    if (_loggedStudent) {
+      const clsObj = (hw.homework_classes||[]).find(c=>c.class_name===_loggedStudent.class);
+      if (clsObj && (clsObj.excluded_student_ids||[]).includes(_loggedStudent.id)) return false;
     }
     return true;
   }).sort((a, b) => {

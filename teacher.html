@@ -682,21 +682,34 @@ function hwCls(hw) { return (hw.homework_classes||[]).map(c=>c.class_name); }
 function subClass(s) { return {수학:'#e0e7ff|#3730a3',영어:'#dcfce7|#166534',국어:'#fce7f3|#9d174d',과학:'#fef3c7|#92400e',사회:'#f0fdf4|#15803d'}[s]||'#f3f4f6|#4b5563'; }
 // 학생이 해당 숙제 시점에 반에 속해 있었는지 (enrolled_at 기준)
 function isStuActive(stu, hw) {
-  if (!stu || !stu.enrolled_at) return true; // 등록일 없으면 항상 포함
+  if (!stu || !stu.enrolled_at) return true;
   return stu.enrolled_at <= (hw.assign_date || hw.due_date || '');
+}
+// 학생이 해당 숙제에 지정된 대상인지 (excluded_student_ids 기준)
+function isStuAssigned(stuId, hw) {
+  if (!hw || !stuId) return true;
+  const stu = _students.find(s=>s.id===stuId);
+  if (!stu) return true;
+  const clsObj = (hw.homework_classes||[]).find(c=>c.class_name===stu.class);
+  if (!clsObj) return true;
+  const excl = clsObj.excluded_student_ids || [];
+  return excl.length === 0 || !excl.includes(stuId);
+}
+function isStuEligible(stu, hw) {
+  return isStuActive(stu, hw) && isStuAssigned(stu?.id, hw);
 }
 function getSubRate(hwId) {
   const hw = _homeworks.find(h=>h.id===hwId);
   const cls = hw ? hwCls(hw) : [];
   const rel = cls.length ? _students.filter(s=>cls.includes(s.class)) : _students;
-  const active = hw ? rel.filter(s=>isStuActive(s,hw)) : rel;
+  const active = hw ? rel.filter(s=>isStuEligible(s,hw)) : rel;
   if (!active.length) return 0;
   const sub = _submissions[hwId]||{};
   return Math.round(active.filter(s=>sub[s.id]?.submitted).length/active.length*100);
 }
 function getStuRate(stuId) {
   const stu = _students.find(s=>s.id===stuId);
-  const rel = _homeworks.filter(h=>(hwCls(h).length===0||hwCls(h).includes(stu?.class)) && isStuActive(stu,h));
+  const rel = _homeworks.filter(h=>(hwCls(h).length===0||hwCls(h).includes(stu?.class)) && isStuEligible(stu,h));
   if (!rel.length) return 0;
   let c=0; rel.forEach(h=>{if(_submissions[h.id]?.[stuId]?.submitted)c++;});
   return Math.round(c/rel.length*100);
@@ -836,7 +849,7 @@ function getClassRate(cls) {
   if (!classStudents.length || !classHWs.length) return 0;
   let submitted = 0, total = 0;
   classHWs.forEach(hw => {
-    const active = classStudents.filter(s => isStuActive(s, hw));
+    const active = classStudents.filter(s => isStuEligible(s, hw));
     total += active.length;
     const sub = _submissions[hw.id] || {};
     active.forEach(s => { if(sub[s.id]?.submitted) submitted++; });
@@ -857,7 +870,7 @@ function showMissingPopup() {
   activeHWs.forEach(hw => {
     const sub = _submissions[hw.id] || {};
     (hw.homework_classes||[]).forEach(clsObj => {
-      const missing = _students.filter(s => s.class === clsObj.class_name && isStuActive(s,hw) && !sub[s.id]?.submitted);
+      const missing = _students.filter(s => s.class === clsObj.class_name && isStuEligible(s,hw) && !sub[s.id]?.submitted);
       if (!missing.length) return;
       totalMissing += missing.length;
       html += `<div style="background:var(--gray-50);border-radius:10px;padding:12px;margin-bottom:10px">
@@ -905,7 +918,7 @@ function renderDashboard() {
   let r7Sub=0, r7Total=0;
   recentHWs.forEach(hw=>{
     const relStu = hwCls(hw).length ? _students.filter(s=>hwCls(hw).includes(s.class)) : _students;
-    const activeStu = relStu.filter(s=>isStuActive(s,hw));
+    const activeStu = relStu.filter(s=>isStuEligible(s,hw));
     const sub = _submissions[hw.id]||{};
     activeStu.forEach(s=>{ r7Total++; if(sub[s.id]?.submitted) r7Sub++; });
   });
@@ -917,7 +930,7 @@ function renderDashboard() {
   activeHWs.forEach(hw => {
     const sub = _submissions[hw.id] || {};
     (hw.homework_classes||[]).forEach(clsObj => {
-      _students.filter(s => s.class === clsObj.class_name && isStuActive(s,hw))
+      _students.filter(s => s.class === clsObj.class_name && isStuEligible(s,hw))
         .forEach(s => { if(!sub[s.id]?.submitted) missingCnt++; });
     });
   });
@@ -943,7 +956,7 @@ function renderDashboard() {
     if(!cHWs.length||!cStu.length) return 0;
     let sub=0,tot=0;
     cHWs.forEach(hw=>{
-      const active=cStu.filter(s=>isStuActive(s,hw));
+      const active=cStu.filter(s=>isStuEligible(s,hw));
       tot+=active.length;
       const s=_submissions[hw.id]||{};
       active.forEach(st=>{if(s[st.id]?.submitted)sub++;});
@@ -974,7 +987,7 @@ function renderDashboard() {
       if(!dayHWs.length||!clsStudents.length) return null;
       let submitted=0, total=0;
       dayHWs.forEach(hw=>{
-        const active=clsStudents.filter(s=>isStuActive(s,hw));
+        const active=clsStudents.filter(s=>isStuEligible(s,hw));
         total+=active.length;
         const sub=_submissions[hw.id]||{};
         active.forEach(s=>{if(sub[s.id]?.submitted)submitted++;});
@@ -1345,8 +1358,53 @@ function addClsPanel(cls, preData=null, preDue=null, preTime=null) {
       <div class="col-auto" style="color:var(--text-sub)">p</div>
     </div>
     <div><textarea class="fc cp-c" placeholder="상세 내용 (예: 오답노트 작성 등)" rows="2" style="resize:vertical">${notesStr}</textarea></div>`;
+  // 학생 지정 섹션 추가
+  const panelStudents = _students.filter(s=>s.class===cls);
+  if (panelStudents.length > 0) {
+    const excluded = preData?.excluded_student_ids || [];
+    const allIncluded = excluded.length === 0;
+    const stuDiv = document.createElement('div');
+    stuDiv.className = 'cp-stu-section';
+    stuDiv.style.cssText = 'margin-top:10px;padding-top:10px;border-top:1px dashed var(--border)';
+    stuDiv.innerHTML = `
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px">
+        <span style="font-size:12px;font-weight:600;color:var(--text-sub)">👥 대상 학생</span>
+        <label style="font-size:11px;font-weight:500;cursor:pointer;display:flex;align-items:center;gap:4px;color:var(--primary)">
+          <input type="checkbox" class="cp-stu-all" ${allIncluded?'checked':''} onchange="toggleAllStuPanel(this)">
+          전원 선택/해제
+        </label>
+      </div>
+      <div style="display:flex;flex-wrap:wrap;gap:5px 16px">
+        ${panelStudents.map(s=>`
+          <label style="font-size:12px;cursor:pointer;display:flex;align-items:center;gap:4px;padding:3px 0">
+            <input type="checkbox" class="cp-stu-cb" value="${s.id}"
+              ${!excluded.includes(s.id)?'checked':''}
+              onchange="syncStuAllCb(this)">
+            ${s.name}
+          </label>`).join('')}
+      </div>`;
+    div.appendChild(stuDiv);
+  }
   document.getElementById('clsPanels').appendChild(div);
   _updateClsLbl(cls);
+}
+
+// 전원 선택/해제 체크박스 토글
+function toggleAllStuPanel(allCb) {
+  const section = allCb.closest('.cp-stu-section');
+  if (!section) return;
+  section.querySelectorAll('.cp-stu-cb').forEach(cb => { cb.checked = allCb.checked; });
+}
+// 개별 학생 체크 변경 시 "전원" 체크박스 동기화
+function syncStuAllCb(cb) {
+  const section = cb.closest('.cp-stu-section');
+  if (!section) return;
+  const all = [...section.querySelectorAll('.cp-stu-cb')];
+  const allCb = section.querySelector('.cp-stu-all');
+  if (!allCb) return;
+  const checkedCount = all.filter(c=>c.checked).length;
+  allCb.checked = checkedCount === all.length;
+  allCb.indeterminate = checkedCount > 0 && checkedCount < all.length;
 }
 
 function toggleClsPanel(cls, checked, preData=null, preDue=null, preTime=null) {
@@ -1462,7 +1520,10 @@ async function saveHW() {
     const notes = (panel.querySelector('.cp-c')?.value.trim()||'').replace(/^"|"$/g,'');
     let ct = notes;
     if(ps && pe) ct = notes ? `${ps}~${pe}p (${notes})` : `${ps}~${pe}p`;
-    return { cls, dueDate, dueTime, textbook: panel.querySelector('.cp-t')?.value.trim()||'', problem_count: pc||null, content: ct };
+    // 체크 해제된 학생 = 제외 대상
+    const stuCbs = [...panel.querySelectorAll('.cp-stu-cb')];
+    const excluded = stuCbs.length ? stuCbs.filter(c=>!c.checked).map(c=>c.value) : [];
+    return { cls, dueDate, dueTime, textbook: panel.querySelector('.cp-t')?.value.trim()||'', problem_count: pc||null, content: ct, excluded_student_ids: excluded };
   }
   try {
     if(editId) {
@@ -1473,7 +1534,7 @@ async function saveHW() {
       await db.from('homework_classes').delete().eq('homework_id',editId);
       for(const p of panels) {
         const pd = getPanelData(p);
-        const {error:ce} = await db.from('homework_classes').insert({class_name:pd.cls,textbook:pd.textbook,problem_count:pd.problem_count,content:pd.content,homework_id:editId});
+        const {error:ce} = await db.from('homework_classes').insert({class_name:pd.cls,textbook:pd.textbook,problem_count:pd.problem_count,content:pd.content,homework_id:editId,excluded_student_ids:pd.excluded_student_ids||[]});
         if(ce) throw ce;
       }
       toast('숙제가 수정되었습니다');
@@ -1484,7 +1545,7 @@ async function saveHW() {
         if(!d.dueDate) { toast(`${d.cls}반 제출 기한을 입력해주세요`,'danger'); return; }
         const {data,error} = await db.from('homeworks').insert({subject, assign_date:assignDate, due_date:d.dueDate, due_time:d.dueTime}).select().single();
         if(error) throw error;
-        await db.from('homework_classes').insert({homework_id:data.id, class_name:d.cls, textbook:d.textbook, problem_count:d.problem_count, content:d.content});
+        await db.from('homework_classes').insert({homework_id:data.id, class_name:d.cls, textbook:d.textbook, problem_count:d.problem_count, content:d.content, excluded_student_ids:d.excluded_student_ids||[]});
       }
       toast(`${panels.length}개 반 숙제가 등록되었습니다`);
     }
@@ -1944,7 +2005,7 @@ function updateMissingBadge() {
   let cnt = 0;
   hws.forEach(hw => {
     (hw.homework_classes||[]).forEach(clsObj => {
-      const stus = _students.filter(s=>s.class===clsObj.class_name && isStuActive(s,hw));
+      const stus = _students.filter(s=>s.class===clsObj.class_name && isStuEligible(s,hw));
       const sub = _submissions[hw.id]||{};
       cnt += stus.filter(s=>!sub[s.id]?.submitted).length;
     });
@@ -1985,7 +2046,7 @@ function renderDashMissing() {
   hws.forEach(hw => {
     (hw.homework_classes||[]).forEach(clsObj => {
       const cls=clsObj.class_name;
-      const stus=_students.filter(s=>s.class===cls && isStuActive(s,hw));
+      const stus=_students.filter(s=>s.class===cls && isStuEligible(s,hw));
       const sub=_submissions[hw.id]||{};
       const missing=stus.filter(s=>!sub[s.id]?.submitted);
       anyMissing = anyMissing || missing.length>0;
@@ -2063,7 +2124,7 @@ function renderMissing() {
     const classHWs = hws.filter(h=>hwCls(h).length===0||hwCls(h).includes(cls));
     if(!classHWs.length||!classStu.length) return;
     classHWs.forEach(hw => {
-      const activeStu = classStu.filter(s => isStuActive(s, hw)); // 등록일 이후 학생만
+      const activeStu = classStu.filter(s => isStuEligible(s, hw));
       if (!activeStu.length) return;
       const sub = _submissions[hw.id]||{};
       const missing = activeStu.filter(s=>!sub[s.id]?.submitted);
@@ -2105,7 +2166,7 @@ function renderHistory() {
   if(!stuId){el.innerHTML='<div class="empty-st"><span class="empty-ic">📋</span>학생을 선택하세요</div>';return;}
   const stu = _students.find(s=>s.id===stuId);
   if(!stu) return;
-  const myHWs = _homeworks.filter(h=>(hwCls(h).length===0||hwCls(h).includes(stu.class)) && isStuActive(stu,h));
+  const myHWs = _homeworks.filter(h=>(hwCls(h).length===0||hwCls(h).includes(stu.class)) && isStuEligible(stu,h));
   let submitted=0; const scores=[];
   const rows = myHWs.map(hw => {
     const sub=(_submissions[hw.id]||{})[stuId];
@@ -2262,7 +2323,7 @@ async function generateDailyMsg() {
       relevantCls.forEach(cls => {
         if(!clsMap[cls]) clsMap[cls] = { noHW: true, missing: [] };
         clsMap[cls].noHW = false;
-        _students.filter(s=>s.class===cls && isStuActive(s,hw)).forEach(s => {
+        _students.filter(s=>s.class===cls && isStuEligible(s,hw)).forEach(s => {
           const sub = (_submissions[hw.id]||{})[s.id];
           let isMissing;
           if (cutoff) {

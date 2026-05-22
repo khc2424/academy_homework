@@ -297,7 +297,8 @@ function checkPw() {
         <option value="rejected">❌ 반려</option><option value="resubmitted">🔄 재제출(반려후)</option><option value="resubmit_voluntary">✏️ 수정제출</option>
       </select>
       <button class="btn-o" onclick="clearPhotoDate()">전체 날짜</button>
-      <button class="btn-o" style="margin-left:auto" onclick="loadPhotos()">🔄 새로고침</button>
+      <button class="btn-o" onclick="markAllReviewed()" style="color:#10b981;border-color:#10b981;font-weight:600">✅ 전체 확인</button>
+      <button class="btn-o" style="margin-left:auto" onclick="manualRefreshPhotos()">🔄 새로고침 <span id="photoArBadge" style="font-size:11px;color:var(--text-muted)"></span></button>
     </div>
     <div id="photoList"></div>
   </div>
@@ -345,7 +346,8 @@ function checkPw() {
         <option value="rejected">거절됨</option>
       </select>
       <button class="btn-o" onclick="clearExtDate()">전체 날짜</button>
-      <button class="btn-o" onclick="loadExtensions()">🔄 새로고침</button>
+      <button class="btn-o" onclick="approveAllExt()" style="color:#10b981;border-color:#10b981;font-weight:600">✅ 전체 승인</button>
+      <button class="btn-o" onclick="manualRefreshExt()">🔄 새로고침 <span id="extArBadge" style="font-size:11px;color:var(--text-muted)"></span></button>
     </div>
     <div id="extList"></div>
   </div>
@@ -410,37 +412,18 @@ function checkPw() {
 
   <!-- DAILY MISSING REPORT -->
   <div class="page" id="page-daily">
-    <div class="page-title">📢 일일 미제출자 메시지</div>
-    <div class="page-sub">날짜를 선택하면 카카오톡 발송용 미제출자 메시지가 자동으로 생성됩니다</div>
+    <div class="page-title">📢 일일 미제출자</div>
+    <div class="page-sub">반별·숙제별 미제출 현황을 한눈에 확인합니다</div>
     <div class="d-flex gap-2 mb-3 align-items-center flex-wrap">
-      <input type="date" class="fc" id="dailyDate" style="width:180px">
-      <button class="btn-p" onclick="generateDailyMsg()">📋 메시지 생성</button>
-      <button class="btn-o" onclick="copyDailyMsg()">📄 전체 복사</button>
-    </div>
-    <div class="row g-3">
-      <div class="col-md-6">
-        <div class="card-c">
-          <div class="card-h d-flex justify-content-between align-items-center">
-            <span>📨 카카오톡 미리보기</span>
-            <button class="btn-kakao" onclick="copyDailyMsg()">📋 복사</button>
-          </div>
-          <div style="padding:16px">
-            <div class="kakao-prev" id="dailyKakaoPrev" style="min-height:120px">
-              <div style="font-size:12px;color:var(--text-sub);margin-bottom:4px;font-weight:600">선생님</div>
-              <div class="kakao-bubble" id="dailyBubble" style="font-size:13px;line-height:2;min-height:60px;color:var(--text-muted)">날짜를 선택하고 메시지 생성을 눌러주세요</div>
-            </div>
-          </div>
-        </div>
-      </div>
-      <div class="col-md-6">
-        <div class="card-c">
-          <div class="card-h">📋 미제출자 상세</div>
-          <div id="dailyDetail" style="padding:12px 16px;font-size:13px;color:var(--text-sub);min-height:80px">
-            <div style="color:var(--text-muted);text-align:center;padding:24px">메시지 생성 후 확인됩니다</div>
-          </div>
-        </div>
+      <input type="date" class="fc" id="dailyDate" style="width:160px" onchange="loadDailyReport()">
+      <button class="btn-p" onclick="loadDailyReport()">🔍 조회</button>
+      <div class="d-flex gap-1 align-items-center" style="margin-left:auto">
+        <button class="btn-o" style="padding:7px 12px" onclick="dailyNavPrev()">◀</button>
+        <span style="font-size:12px;color:var(--text-sub)">3일 이동</span>
+        <button class="btn-o" style="padding:7px 12px" onclick="dailyNavNext()">▶</button>
       </div>
     </div>
+    <div id="dailyReport"><div class="empty-st"><span class="empty-ic">📢</span>날짜를 선택하고 조회를 눌러주세요</div></div>
   </div>
 
   <!-- WEEKEND 10PM REPORT (daily 페이지 안에 추가) -->
@@ -644,6 +627,7 @@ async function init() {
   renderDashboard();
   populateSelects();
   updateMissingBadge();
+  startGlobalAutoRefresh(); // 10초 백그라운드 자동 새로고침 시작
 }
 
 // ---- DATA LOADING ----
@@ -796,7 +780,7 @@ function showPage(name) {
   document.querySelectorAll('.nav-btn').forEach(b=>{if(b.getAttribute('onclick')?.includes("'"+name+"'"))b.classList.add('active');});
   if (isMobile()) closeSidebar();
   if(name==='dashboard') { loadSubmissions().then(()=>{ renderDashboard(); }); }
-  if(name==='photos') renderPhotos();
+  if(name==='photos') { loadPhotos(); }
   if(name==='homework') renderHomework();
   if(name==='students') renderStudents();
   if(name==='message'){window._msgStudents=window._msgStudents||{};renderMessages();}
@@ -808,6 +792,7 @@ function showPage(name) {
   if(name==='daily') {
     const inp = document.getElementById('dailyDate');
     if(!inp.value) inp.value = new Date().toISOString().slice(0,10);
+    loadDailyReport();
   }
   if(name==='weekend') {
     const inp = document.getElementById('weekendDate');
@@ -2285,135 +2270,141 @@ function fmtDailyDate(dateStr) {
   return `${mm}/${dd}(${DAYS[dt.getDay()]})`;
 }
 
-async function generateDailyMsg() {
-  // dateStr = 보고서 날짜 (예: 4/3)
-  // 기준 숙제   = 전날 (4/2) 기한 숙제
-  // 미제출 마감 = 보고서 날짜 오후 3시 (4/3 15:00)
-  // 전일미제출자 = 이틀 전(4/1) 숙제, 어제(4/2) 오후 3시까지 미제출했던 학생 현황
+function dailyNavPrev() {
+  const inp = document.getElementById('dailyDate');
+  if(!inp.value) inp.value = new Date().toISOString().slice(0,10);
+  inp.value = localDateAddDays(inp.value, -1);
+  loadDailyReport();
+}
+function dailyNavNext() {
+  const inp = document.getElementById('dailyDate');
+  if(!inp.value) inp.value = new Date().toISOString().slice(0,10);
+  inp.value = localDateAddDays(inp.value, 1);
+  loadDailyReport();
+}
+
+async function loadDailyReport() {
   const dateStr = document.getElementById('dailyDate').value;
   if(!dateStr) { toast('날짜를 선택해주세요','danger'); return; }
 
   await loadSubmissions();
   if(!_extensions.length) await loadExtensions();
 
-  // ── 날짜 계산 (로컬 날짜 함수 사용 → 한국 시간대 오류 방지) ──
-  const hwDayStr   = localDateAddDays(dateStr, -1);   // 메인 숙제 날짜 (전날)
-  const prevDay2Str = localDateAddDays(dateStr, -2);  // 전일미제출자 숙제 날짜 (이틀 전)
-  const prevCutoff = new Date(hwDayStr + 'T15:00:00'); // 전날 오후 3시 기준
-
-  // ── 숙제 목록 ──
-  // dateStr=4/3 선택 → 메인=4/2 기한, 전일미제출자=4/1 기한, prevCutoff=4/2 15:00
-  const todayHWs   = _homeworks.filter(h => h.due_date === hwDayStr);     // 메인: 전날 기한
-  const prevDayHWs = _homeworks.filter(h => h.due_date === prevDay2Str);  // 전일미제출자: 이틀 전 기한
-
-  const dateLabel = fmtDailyDate(dateStr);
+  const today = new Date().toISOString().slice(0,10);
   const classes = getClasses();
 
-  // ── 연장 신청 맵 ──
+  // 3일: 선택일-1, 선택일, 선택일+1 (기한 기준)
+  const days = [
+    localDateAddDays(dateStr, -1),
+    dateStr,
+    localDateAddDays(dateStr, 1)
+  ];
+  const dayHWs = days.map(d => _homeworks.filter(h => h.due_date === d));
+
+  // 연장 맵: stuId_hwId → requested_until
   const extMap = {};
   _extensions.forEach(e => {
     if(e.status==='approved'||e.status==='pending')
-      extMap[`${e.student_id}_${e.homework_id}`] = e.requested_time||'';
+      extMap[`${e.student_id}_${e.homework_id}`] = e.requested_until || '';
   });
 
-  // ── 미제출자 계산 ──
-  // cutoff 없으면: 현재 기준 미제출 그대로 (실시간)
-  // cutoff 있으면: cutoff 이전에 제출한 학생만 제외 (이후 제출·미제출 모두 포함)
-  function getMissing(hwList, cutoff) {
-    const clsMap = {};
-    getClasses().forEach(cls => { clsMap[cls] = { noHW: true, missing: [] }; });
-    hwList.forEach(hw => {
-      const relevantCls = hwCls(hw).length ? hwCls(hw) : getClasses();
-      relevantCls.forEach(cls => {
-        if(!clsMap[cls]) clsMap[cls] = { noHW: true, missing: [] };
-        clsMap[cls].noHW = false;
-        _students.filter(s=>s.class===cls && isStuEligible(s,hw)).forEach(s => {
-          const sub = (_submissions[hw.id]||{})[s.id];
-          let isMissing;
-          if (cutoff) {
-            // cutoff 기준: 그 시각 이전에 정상 제출한 학생만 제외
-            const submittedAt = sub?.submitted_at ? new Date(sub.submitted_at) : null;
-            const onTime = sub?.submitted && submittedAt && submittedAt <= cutoff && sub.rejection_status !== 'rejected';
-            isMissing = !onTime;
-          } else {
-            // 실시간: 현재 미제출 여부만 확인
-            isMissing = !sub?.submitted || sub.rejection_status === 'rejected';
-          }
-          if (!isMissing) return;
-          if (!clsMap[cls].missing.find(m=>m.id===s.id))
-            clsMap[cls].missing.push({ id: s.id, name: s.name, reason: extMap[`${s.id}_${hw.id}`]||'' });
-        });
+  // 날짜별 총 미제출 수
+  function getTotalMissing(hwList) {
+    let cnt = 0;
+    classes.forEach(cls => {
+      hwList.forEach(hw => {
+        if(hwCls(hw).length && !hwCls(hw).includes(cls)) return;
+        const sub = _submissions[hw.id]||{};
+        cnt += _students.filter(s=>s.class===cls&&isStuEligible(s,hw)&&(!sub[s.id]?.submitted||sub[s.id]?.rejection_status==='rejected')).length;
       });
     });
-    return clsMap;
+    return cnt;
   }
 
-  // 메인 섹션: cutoff 없이 실시간 기준
-  const todayMap = getMissing(todayHWs, null);
+  // 헤더 th 렌더
+  function renderDayHead(d, hwList, isCenter) {
+    const dt = new Date(d+'T00:00:00');
+    const label = `${dt.getMonth()+1}/${dt.getDate()}(${DAYS[dt.getDay()]}) 기한`;
+    const isToday = d === today;
+    const total = getTotalMissing(hwList);
+    const cntHtml = total > 0
+      ? `<span style="font-size:11px;font-weight:600;color:#ef4444;display:block;margin-top:3px">🚨 미제출 ${total}명</span>`
+      : hwList.length === 0
+        ? `<span style="font-size:11px;color:#d1d5db;display:block;margin-top:3px">숙제 없음</span>`
+        : `<span style="font-size:11px;font-weight:600;color:#10b981;display:block;margin-top:3px">✅ 전원 완료</span>`;
+    const todayBadge = isToday ? `<span style="font-size:10px;background:#4f46e5;color:#fff;padding:1px 6px;border-radius:8px;margin-left:4px;vertical-align:middle;font-weight:600">오늘</span>` : '';
+    const bg = isCenter ? 'background:#eef2ff;' : 'background:#f9fafb;';
+    const dateColor = isToday ? '#4f46e5' : '#1f2937';
+    return `<th style="${bg}padding:13px 12px;border-bottom:1px solid #e5e7eb;border-right:1px solid #e5e7eb;text-align:center;font-weight:600">
+      <span style="font-size:13px;font-weight:700;display:block;color:${dateColor}">${label}${todayBadge}</span>
+      ${cntHtml}
+    </th>`;
+  }
 
-  // ── 오늘 미제출자 메시지 ──
-  let msg = `[${fmtDailyDate(hwDayStr)} 미제출자]\n`;
-  classes.forEach(cls => {
-    const info = todayMap[cls];
-    if(!info) return;
-    if(info.noHW) { msg += `${cls} - 숙제없음\n`; return; }
-    if(info.missing.length===0) { msg += `${cls} - 전원완료\n`; return; }
-    msg += `${cls} - ${info.missing.map(s=>s.reason?`${s.name}(${s.reason})`:s.name).join(', ')}\n`;
-  });
-
-  // ── 전일미제출자: 이틀 전 숙제, 어제 15:00 마감 기준으로 미제출이었던 학생 현황 ──
-  const prevEntries = [];
-  prevDayHWs.forEach(hw => {
-    const relevantCls = hwCls(hw).length ? hwCls(hw) : getClasses();
-    relevantCls.forEach(cls => {
-      _students.filter(s=>s.class===cls).forEach(stu => {
-        const sub = _submissions[hw.id]?.[stu.id];
-        const submittedAt = sub?.submitted_at ? new Date(sub.submitted_at) : null;
-        // 어제 15:00 이전 정시 제출 → 어제 보고서에 없던 학생 → 건너뜀
-        const wasOnTime = sub?.submitted && submittedAt && submittedAt <= prevCutoff && sub.rejection_status !== 'rejected';
-        if (wasOnTime) return;
-        if (prevEntries.find(x=>x.name===stu.name&&x.cls===cls)) return;
-        const nowSubmitted = sub?.submitted && sub.rejection_status !== 'rejected';
-        const label = nowSubmitted ? '완료' : '';
-        prevEntries.push({ name: stu.name, cls, label });
-      });
+  // 셀 td 렌더
+  function renderCell(cls, hwList, isCenter) {
+    const clsHWs = hwList.filter(h => hwCls(h).length===0 || hwCls(h).includes(cls));
+    const todayBg = isCenter ? '#fafafe' : '#fff';
+    const okBg = isCenter ? '#f5f9ff' : '#f0fdf4';
+    const tdStyle = `padding:10px 13px;vertical-align:top;border-bottom:1px solid var(--border);border-right:1px solid var(--border)`;
+    if(!clsHWs.length) {
+      return `<td style="${tdStyle};background:#fafafa"><div style="font-size:12px;color:#d1d5db;text-align:center;padding:5px 0">숙제 없음</div></td>`;
+    }
+    let allOk = true;
+    let inner = '';
+    clsHWs.forEach(hw => {
+      const sub = _submissions[hw.id]||{};
+      const activeStu = _students.filter(s=>s.class===cls&&isStuEligible(s,hw));
+      const missing = activeStu.filter(s=>!sub[s.id]?.submitted||sub[s.id]?.rejection_status==='rejected');
+      const clsObj = (hw.homework_classes||[]).find(c=>c.class_name===cls)||(hw.homework_classes||[])[0];
+      const tb = clsObj?.textbook||hw.subject||'-';
+      if(missing.length) allOk = false;
+      if(!missing.length) return;
+      const chips = missing.map(s => {
+        const extUntil = extMap[`${s.id}_${hw.id}`];
+        if(extUntil) {
+          const d = extUntil.slice(5).replace('-','/');
+          return `<span style="background:#fef3c7;color:#92400e;padding:3px 10px;border-radius:99px;font-size:12px;font-weight:600;display:inline-flex;align-items:center;gap:3px">${s.name}<span style="font-size:10px;background:#f59e0b;color:#fff;padding:1px 5px;border-radius:5px;font-weight:700">~${d}</span></span>`;
+        }
+        return `<span style="background:#fee2e2;color:#991b1b;padding:3px 10px;border-radius:99px;font-size:12px;font-weight:600">${s.name}</span>`;
+      }).join('');
+      inner += `<div style="margin-bottom:6px">
+        <div style="font-size:11px;color:#9ca3af;font-weight:600;margin-bottom:3px">${tb}</div>
+        <div style="display:flex;flex-wrap:wrap;gap:3px">${chips}</div>
+      </div>`;
     });
-  });
-  if (prevEntries.length) {
-    const byClass = {};
-    prevEntries.forEach(e => { (byClass[e.cls]||(byClass[e.cls]=[])).push(e.label?`${e.name}(${e.label})`:e.name); });
-    msg += `\n전일미제출자\n` + classes.filter(c=>byClass[c]).map(c=>byClass[c].join(', ')).join('\n');
-  } else if (prevDayHWs.length > 0) {
-    msg += `\n전일미제출자\n없음`;
+    if(allOk) return `<td style="${tdStyle};background:${okBg}"><span style="color:#10b981;font-size:12px;font-weight:600">✅ 전원 제출</span></td>`;
+    return `<td style="${tdStyle};background:${todayBg}">${inner}</td>`;
   }
 
-  // ── 미리보기 ──
-  window._dailyMsg = msg;
-  document.getElementById('dailyBubble').style.color = '';
-  document.getElementById('dailyBubble').innerHTML = escH(msg);
+  // 테이블 조립
+  const activeCls = classes.filter(cls =>
+    dayHWs.some(hwList => hwList.some(h => hwCls(h).length===0 || hwCls(h).includes(cls)))
+  );
 
-  // ── 상세 패널 ──
-  let detailHtml = `<div style="font-weight:700;color:var(--primary);margin-bottom:10px">📅 ${fmtDailyDate(hwDayStr)} 기한 숙제 미제출 현황</div>`;
-  classes.forEach(cls => {
-    const info = todayMap[cls];
-    if(!info || info.noHW) return;
-    const done = info.missing.length === 0;
-    const color = done ? '#dcfce7' : '#fee2e2';
-    const text  = done ? '전원완료' : `미제출 ${info.missing.length}명`;
-    detailHtml += `<div style="display:flex;align-items:center;gap:8px;padding:5px 0;border-bottom:1px solid var(--border)">
-      <span style="font-weight:600;min-width:70px">${cls}</span>
-      <span style="background:${color};padding:2px 8px;border-radius:12px;font-size:11px;font-weight:600">${text}</span>
-      ${info.missing.length?`<span style="font-size:12px;color:var(--text-sub)">${info.missing.map(s=>s.reason?`${s.name}(${s.reason})`:s.name).join(', ')}</span>`:''}
-    </div>`;
-  });
-  document.getElementById('dailyDetail').innerHTML = detailHtml;
-  toast('미제출자 메시지가 생성되었습니다');
-}
+  let rows = '';
+  if(!activeCls.length) {
+    rows = `<tr><td colspan="4" style="text-align:center;padding:48px;color:#9ca3af;font-size:13px">해당 날짜 주변에 숙제가 없습니다</td></tr>`;
+  } else {
+    activeCls.forEach(cls => {
+      rows += `<tr>
+        <td style="background:#f9fafb;padding:11px 16px;border-bottom:1px solid var(--border);border-right:1px solid var(--border);font-size:13px;font-weight:700;color:#374151;white-space:nowrap">${cls}반</td>
+        ${days.map((d,i) => renderCell(cls, dayHWs[i], i===1)).join('')}
+      </tr>`;
+    });
+  }
 
-function copyDailyMsg() {
-  const msg = window._dailyMsg;
-  if(!msg) { toast('먼저 메시지를 생성해주세요','info'); return; }
-  navigator.clipboard.writeText(msg).then(()=>toast('클립보드에 복사되었습니다!'));
+  const html = `<div style="background:var(--card);border:1px solid var(--border);border-radius:14px;overflow:hidden;box-shadow:0 1px 4px rgba(0,0,0,.06)">
+    <table style="width:100%;border-collapse:collapse;table-layout:fixed">
+      <thead><tr>
+        <th style="width:90px;background:#f9fafb;padding:13px 16px;border-bottom:1px solid var(--border);border-right:1px solid var(--border);text-align:left"></th>
+        ${days.map((d,i) => renderDayHead(d, dayHWs[i], i===1)).join('')}
+      </tr></thead>
+      <tbody>${rows}</tbody>
+    </table>
+  </div>`;
+
+  document.getElementById('dailyReport').innerHTML = html;
 }
 
 // ---- WEEKEND 10PM REPORT ----
@@ -2494,6 +2485,67 @@ function copyWeekendMsg() {
   const msg = window._weekendMsg;
   if(!msg) { toast('먼저 메시지를 생성해주세요','info'); return; }
   navigator.clipboard.writeText(msg).then(()=>toast('클립보드에 복사되었습니다!'));
+}
+
+// ---- 전역 자동 새로고침 (페이지 관계없이 10초마다 실행) ----
+let _globalArTick = null, _globalArSec = 10;
+
+function startGlobalAutoRefresh() {
+  if (_globalArTick) clearInterval(_globalArTick);
+  _globalArSec = 10;
+  _updateArBadge();
+  _globalArTick = setInterval(() => {
+    _globalArSec--;
+    _updateArBadge();
+    if (_globalArSec <= 0) {
+      _globalArSec = 10;
+      loadPhotos();      // 어느 페이지에 있어도 백그라운드 갱신
+      loadExtensions();  // 어느 페이지에 있어도 백그라운드 갱신
+    }
+  }, 1000);
+}
+
+function _updateArBadge() {
+  const sec = _globalArSec;
+  const pb = document.getElementById('photoArBadge');
+  const eb = document.getElementById('extArBadge');
+  if (pb) pb.textContent = `(${sec}s)`;
+  if (eb) eb.textContent = `(${sec}s)`;
+}
+
+function manualRefreshPhotos() {
+  _globalArSec = 10; _updateArBadge();
+  loadPhotos();
+}
+
+function manualRefreshExt() {
+  _globalArSec = 10; _updateArBadge();
+  loadExtensions();
+}
+
+// ---- 전체 확인 / 전체 승인 ----
+async function markAllReviewed() {
+  const unreviewed = _photoSubs.filter(s => !s.reviewed && s.rejection_status !== 'rejected');
+  if (!unreviewed.length) { toast('확인할 미확인 사진이 없습니다', 'info'); return; }
+  if (!confirm(`미확인 사진 ${unreviewed.length}건을 모두 확인 처리하시겠습니까?`)) return;
+  const ids = unreviewed.map(s => s.id);
+  for (let i = 0; i < ids.length; i += 50) {
+    await db.from('submissions').update({ reviewed: true }).in('id', ids.slice(i, i+50));
+  }
+  await loadPhotos();
+  toast(`✅ ${unreviewed.length}건 전체 확인 완료`);
+}
+
+async function approveAllExt() {
+  const pending = _extensions.filter(e => e.status === 'pending');
+  if (!pending.length) { toast('대기 중인 연장 신청이 없습니다', 'info'); return; }
+  if (!confirm(`대기 중인 연장 신청 ${pending.length}건을 모두 승인하시겠습니까?`)) return;
+  const ids = pending.map(e => e.id);
+  for (let i = 0; i < ids.length; i += 50) {
+    await db.from('extension_requests').update({ status: 'approved' }).in('id', ids.slice(i, i+50));
+  }
+  await loadExtensions();
+  toast(`✅ ${pending.length}건 연장 전체 승인 완료`);
 }
 
 function exportCSV(hwId){

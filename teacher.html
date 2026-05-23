@@ -572,6 +572,8 @@ const SUPABASE_KEY  = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFz
 // TEACHER_PW는 별도 스크립트에 정의됨
 const ACADEMY_NAME  = 'NK학원';
 const BUCKET_NAME   = 'homework-photos';
+// ── 알림 설정 ──────────────────────────────────────────────
+const SUPABASE_FUNCTIONS_URL = 'https://umvblxlwllgpypxhtpcp.supabase.co/functions/v1';
 
 const DEFAULT_TEMPLATE =
 `[{반명}반_{공지날짜} 숙제 안내]
@@ -1525,14 +1527,19 @@ async function saveHW() {
       toast('숙제가 수정되었습니다');
     } else {
       // 신규: 반별로 숙제 각각 등록
+      const newHWs = []; // 알림용 저장
       for(const panel of panels) {
         const d = getPanelData(panel);
         if(!d.dueDate) { toast(`${d.cls}반 제출 기한을 입력해주세요`,'danger'); return; }
         const {data,error} = await db.from('homeworks').insert({subject, assign_date:assignDate, due_date:d.dueDate, due_time:d.dueTime}).select().single();
         if(error) throw error;
         await db.from('homework_classes').insert({homework_id:data.id, class_name:d.cls, textbook:d.textbook, problem_count:d.problem_count, content:d.content, excluded_student_ids:d.excluded_student_ids||[]});
+        newHWs.push({ hw: data, panelData: d });
       }
       toast(`${panels.length}개 반 숙제가 등록되었습니다`);
+      // 알림 전송 (비동기, 오류 무시)
+      Promise.all(newHWs.map(({hw, panelData}) => notifyNewHomework(hw, panelData)))
+        .catch(e => console.warn('알림 전송 오류:', e));
     }
     await loadHomeworks();
     closeModal('hwModal');
@@ -1962,6 +1969,7 @@ async function handleExt(id, status) {
   const { error } = await db.from('extension_requests').update({ status, teacher_note: note||null }).eq('id', id);
   if (error) { toast('오류: '+error.message,'danger'); return; }
   toast(status==='approved'?'✅ 승인되었습니다':'❌ 거절되었습니다', status==='approved'?'success':'info');
+  if (status === 'approved') notifyExtApproved(id).catch(e => console.warn('알림 오류:', e));
   await loadExtensions();
   renderExtensions();
 }
@@ -2546,6 +2554,9 @@ async function approveAllExt() {
   }
   await loadExtensions();
   toast(`✅ ${pending.length}건 연장 전체 승인 완료`);
+  // 승인된 항목들 알림 전송
+  Promise.all(pending.map(e => notifyExtApproved(e.id)))
+    .catch(e => console.warn('알림 오류:', e));
 }
 
 function exportCSV(hwId){
@@ -2560,6 +2571,127 @@ function exportCSV(hwId){
   a.href=url; a.download=`성적_${hw?.subject||'전체'}.csv`; a.click();
   URL.revokeObjectURL(url);
 }
+
+// ============================================================
+//  Web Push 알림 함수들
+// ============================================================
+
+// Edge Function 호출: 즉시 푸시 발송
+async function sendPushToStudents(studentIds, title, body) {
+  if (!studentIds.length) return;
+  try {
+    await fetch(`${SUPABASE_FUNCTIONS_URL}/hw-notify`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${SUPABASE_KEY}`
+      },
+      body: JSON.stringify({ action: 'send', student_ids: studentIds, title, body })
+    });
+  } catch(e) { console.warn('푸시 발송 실패:', e); }
+}
+
+// 연장 신청 텍스트 → 예상 마감 시각 계산
+function parseExtDeadline(requestedTime, requestedUntil) {
+  const now = new Date();
+  const map = {
+    '30분 후':          new Date(now.getTime() + 30 * 60 * 1000),
+    '1시간 후':         new Date(now.getTime() + 60 * 60 * 1000),
+    '2시간 후':         new Date(now.getTime() + 2 * 60 * 60 * 1000),
+    '내일 오후 2시':    requestedUntil ? new Date(`${requestedUntil}T14:00:00+09:00`) : null,
+    '내일 등원 전':     requestedUntil ? new Date(`${requestedUntil}T09:00:00+09:00`) : null,
+    '내일 숙제와 함께': requestedUntil ? new Date(`${requestedUntil}T23:59:00+09:00`) : null,
+  };
+  return map[requestedTime] || (requestedUntil ? new Date(`${requestedUntil}T23:59:00+09:00`) : null);
+}
+
+// 알림 1: 숙제 등록 → 즉시 알림 + 1시간 전 / 5분 전 예약
+async function notifyNewHomework(hw, panelData) {
+  const excluded = panelData.excluded_student_ids || [];
+  const stuIds = _students
+    .filter(s => s.class === panelData.cls && !excluded.includes(s.id))
+    .map(s => s.id);
+  if (!stuIds.length) return;
+
+  // ① 즉시 알림
+  await sendPushToStudents(
+    stuIds,
+    '새로운 숙제가 등록되었어요!',
+    `${hw.subject} — 기한: ${hw.due_date}${hw.due_time ? ' ' + hw.due_time : ''}`
+  );
+
+  // ② 1시간 전 / 5분 전 예약 (notification_schedule 테이블 insert)
+  const dueTime  = hw.due_time || '23:59';
+  const deadline = new Date(`${hw.due_date}T${dueTime}:00+09:00`);
+  const now      = new Date();
+  const reminders = [];
+
+  for (const stuId of stuIds) {
+    const oneHr   = new Date(deadline.getTime() - 60 * 60 * 1000);
+    const fiveMin = new Date(deadline.getTime() - 5 * 60 * 1000);
+
+    if (oneHr > now) {
+      reminders.push({
+        homework_id: hw.id, student_id: stuId,
+        send_at: oneHr.toISOString(), type: '1hr_reminder',
+        title: '숙제 제출이 1시간 남았어요!',
+        body:  `슬슬 시작해봅시다~`
+      });
+    }
+    if (fiveMin > now) {
+      reminders.push({
+        homework_id: hw.id, student_id: stuId,
+        send_at: fiveMin.toISOString(), type: '5min_reminder',
+        title: '숙제 제출이 5분 남았어요!',
+        body:  `채점 후 제출 잊지맙시다~`
+      });
+    }
+  }
+
+  // 50개씩 배치 insert
+  for (let i = 0; i < reminders.length; i += 50) {
+    await db.from('notification_schedule').insert(reminders.slice(i, i + 50));
+  }
+}
+
+// 알림 4: 연장 승인 → 즉시 알림 + 연장 마감 30분 전 예약
+async function notifyExtApproved(extId) {
+  let ext = _extensions.find(e => e.id === extId);
+  if (!ext) {
+    const { data } = await db.from('extension_requests')
+      .select('*, homeworks(subject)')
+      .eq('id', extId).single();
+    ext = data;
+  }
+  if (!ext) return;
+
+  const hw      = _homeworks.find(h => h.id === ext.homework_id);
+  const subject = hw?.subject || ext.homeworks?.subject || '숙제';
+
+  // ① 즉시 알림: 연장 승인됨
+  await sendPushToStudents(
+    [ext.student_id],
+    '✅ 연장 신청이 승인됐어요!',
+    `${subject} — ${ext.requested_time}까지 기한이 연장됐어요`
+  );
+
+  // ② 연장 마감 30분 전 예약
+  const deadline = parseExtDeadline(ext.requested_time, ext.requested_until);
+  if (!deadline) return;
+
+  const thirtyMin = new Date(deadline.getTime() - 30 * 60 * 1000);
+  if (thirtyMin > new Date()) {
+    await db.from('notification_schedule').insert({
+      homework_id: ext.homework_id,
+      student_id:  ext.student_id,
+      send_at:     thirtyMin.toISOString(),
+      type:        'ext_30min',
+      title:       '연장한 제출 시간이 30분 남았어요!',
+      body:        `얼른 합시다~`
+    });
+  }
+}
+
 </script>
 </body>
 </html>

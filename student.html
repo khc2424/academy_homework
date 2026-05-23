@@ -4,6 +4,11 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <title>숙제 제출</title>
+  <link rel="manifest" href="/manifest.json">
+  <meta name="theme-color" content="#FEE500">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <meta name="apple-mobile-web-app-title" content="NK학원">
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -417,6 +422,8 @@ const SUPABASE_URL  = 'https://umvblxlwllgpypxhtpcp.supabase.co';
 const SUPABASE_KEY  = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVtdmJseGx3bGxncHlweGh0cGNwIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQ5MzQ2ODUsImV4cCI6MjA5MDUxMDY4NX0.yTXix8cAm0iyL2E1RoO2zpmfzUq7BePV_PFKDkz_IjU';
 const ACADEMY_NAME  = 'NK학원';
 const BUCKET_NAME   = 'homework-photos';
+// 알림용 VAPID 공개 키 (teacher.html과 동일하게 유지)
+const VAPID_PUBLIC_KEY = 'BKZ0NLSqFhgCtXl-hVF79NFFUzRPYvteOooowlO0GnyLjpJ3nnFLlrOyA0s55_yLAQSsxDZjpttanMUqmbTxmn4';
 
 // ============================================================
 const { createClient } = supabase;
@@ -509,6 +516,10 @@ async function showMainForm() {
   document.getElementById('mainContainer').style.display = 'block';
   document.getElementById('headerStudentName').textContent = _loggedStudent.name;
   await preSelectStudent();
+  // 알림 권한 요청 (이미 거절했으면 스킵)
+  if (localStorage.getItem('pushDenied') !== '1') {
+    setTimeout(initPushNotifications, 1200);
+  }
 }
 
 async function preSelectStudent() {
@@ -1264,8 +1275,153 @@ function renderHistory() {
 }
 
 // ============================================================
+//  Web Push 알림 시스템
+// ============================================================
+
+// urlBase64 → Uint8Array 변환 (VAPID 키 변환용)
+function urlBase64ToUint8Array(base64String) {
+  const padding = '='.repeat((4 - base64String.length % 4) % 4);
+  const base64  = (base64String + padding).replace(/-/g, '+').replace(/_/g, '/');
+  const raw     = window.atob(base64);
+  return Uint8Array.from([...raw].map(c => c.charCodeAt(0)));
+}
+
+let _swReg = null;
+
+// 서비스 워커 등록 (페이지 로드 시 즉시)
+async function registerServiceWorker() {
+  if (!('serviceWorker' in navigator)) return;
+  try {
+    _swReg = await navigator.serviceWorker.register('/sw.js', { scope: '/' });
+    await navigator.serviceWorker.ready;
+  } catch(e) { console.warn('SW 등록 실패:', e); }
+}
+
+// 로그인 후 알림 초기화
+async function initPushNotifications() {
+  if (!('serviceWorker' in navigator) || !('PushManager' in window)) return;
+  if (!_swReg) await registerServiceWorker();
+  if (!_swReg) return;
+
+  try {
+    const existing = await _swReg.pushManager.getSubscription();
+    if (existing) {
+      // 이미 구독 중 → DB에 최신 구독 저장 확인
+      await savePushSubscription(existing);
+      return;
+    }
+
+    // 이미 권한이 있는 경우 바로 구독
+    if (Notification.permission === 'granted') {
+      await subscribeToPush();
+      return;
+    }
+
+    // 권한 미결정 → 배너로 물어보기
+    if (Notification.permission === 'default') {
+      showPushBanner();
+    }
+  } catch(e) { console.warn('알림 초기화 오류:', e); }
+}
+
+function showPushBanner() {
+  // 이미 배너가 있으면 건너뜀
+  if (document.getElementById('pushBanner')) return;
+
+  const banner = document.createElement('div');
+  banner.id = 'pushBanner';
+  banner.innerHTML = `
+    <div style="background:#fffde7;border:1.5px solid #FEE500;border-radius:14px;padding:14px 16px;margin-bottom:14px;display:flex;align-items:center;gap:12px;box-shadow:0 2px 8px rgba(0,0,0,.08)">
+      <div style="font-size:28px;flex-shrink:0">🔔</div>
+      <div style="flex:1;min-width:0">
+        <div style="font-weight:700;color:#3C1E1E;font-size:14px">숙제 알림 받기</div>
+        <div style="font-size:12px;color:#7a5a2a;margin-top:2px">숙제 등록·마감 전 알림을 카카오톡처럼 받을 수 있어요</div>
+      </div>
+      <div style="display:flex;gap:6px;flex-shrink:0">
+        <button id="pushAllowBtn" style="background:#FEE500;border:none;border-radius:10px;padding:8px 14px;font-weight:700;font-size:13px;cursor:pointer;color:#3C1E1E">허용</button>
+        <button id="pushDenyBtn" style="background:none;border:1px solid #ddd;border-radius:10px;padding:8px 10px;font-size:12px;cursor:pointer;color:#999">나중에</button>
+      </div>
+    </div>`;
+
+  const container = document.getElementById('mainContainer');
+  container.insertBefore(banner, container.firstChild);
+
+  document.getElementById('pushAllowBtn').onclick = async () => {
+    banner.remove();
+    await subscribeToPush();
+  };
+  document.getElementById('pushDenyBtn').onclick = () => {
+    banner.remove();
+    localStorage.setItem('pushDenied', '1');
+  };
+}
+
+async function subscribeToPush() {
+  if (!_swReg) return;
+  try {
+    const sub = await _swReg.pushManager.subscribe({
+      userVisibleOnly: true,
+      applicationServerKey: urlBase64ToUint8Array(VAPID_PUBLIC_KEY)
+    });
+    await savePushSubscription(sub);
+    showPushSuccessToast();
+  } catch(e) {
+    console.warn('푸시 구독 실패:', e);
+    if (e.name === 'NotAllowedError') {
+      localStorage.setItem('pushDenied', '1');
+    }
+  }
+}
+
+async function savePushSubscription(sub) {
+  if (!_loggedStudent) return;
+  const json = sub.toJSON();
+  await db.from('push_subscriptions').upsert({
+    student_id: _loggedStudent.id,
+    endpoint:   json.endpoint,
+    p256dh:     json.keys.p256dh,
+    auth:       json.keys.auth,
+    updated_at: new Date().toISOString()
+  }, { onConflict: 'student_id,endpoint' });
+}
+
+function showPushSuccessToast() {
+  const t = document.createElement('div');
+  t.style.cssText = 'position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:#333;color:#fff;padding:10px 20px;border-radius:20px;font-size:13px;z-index:9999;white-space:nowrap';
+  t.textContent = '🔔 알림이 허용됐어요!';
+  document.body.appendChild(t);
+  setTimeout(() => t.remove(), 3000);
+}
+
+// iOS 홈 화면 추가 안내 (Safari에서 PWA 미설치 시)
+function checkiOSInstall() {
+  const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
+  const isStandalone = window.navigator.standalone;
+  const dismissed = localStorage.getItem('iosInstallDismissed');
+  if (!isIOS || isStandalone || dismissed) return;
+
+  const banner = document.createElement('div');
+  banner.id = 'iosBanner';
+  banner.innerHTML = `
+    <div style="background:#e0f2fe;border:1.5px solid #7dd3fc;border-radius:14px;padding:14px 16px;margin-bottom:14px;position:relative">
+      <button onclick="document.getElementById('iosBanner').remove();localStorage.setItem('iosInstallDismissed','1')"
+        style="position:absolute;top:10px;right:12px;background:none;border:none;font-size:18px;color:#999;cursor:pointer">✕</button>
+      <div style="font-weight:700;color:#0369a1;font-size:14px">📱 알림을 받으려면 홈 화면에 추가하세요 (아이폰)</div>
+      <div style="font-size:12px;color:#0284c7;margin-top:6px;line-height:1.6">
+        1. Safari 하단 <strong>공유 버튼(□↑)</strong> 탭<br>
+        2. <strong>"홈 화면에 추가"</strong> 선택<br>
+        3. 홈 화면 앱 아이콘으로 열면 알림 허용 가능
+      </div>
+    </div>`;
+
+  const container = document.getElementById('mainContainer');
+  container.insertBefore(banner, container.firstChild);
+}
+
+// ============================================================
 //  START
 // ============================================================
+registerServiceWorker(); // 페이지 로드 즉시 SW 등록
 init();
 </script>
 </body>

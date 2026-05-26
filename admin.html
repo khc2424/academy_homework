@@ -1,0 +1,377 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>관리자 대시보드</title>
+  <link href="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.3.0/css/bootstrap.min.css" rel="stylesheet">
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <style>
+    :root {
+      --primary:#4f46e5; --primary-light:#eef2ff;
+      --success:#10b981; --warning:#f59e0b; --danger:#ef4444;
+      --bg:#f1f5f9; --card:#fff; --border:#e5e7eb;
+      --text:#1f2937; --text-sub:#4b5563; --text-muted:#9ca3af;
+    }
+    body { background:var(--bg); font-family:'Segoe UI','Malgun Gothic',sans-serif; color:var(--text); }
+    /* 로그인 */
+    .login-screen { position:fixed; inset:0; background:var(--bg); display:flex; align-items:center; justify-content:center; z-index:9999; }
+    .login-box { background:var(--card); border-radius:16px; padding:40px; width:340px; box-shadow:0 8px 32px rgba(0,0,0,.12); text-align:center; }
+    .fc { border:1px solid var(--border); border-radius:8px; padding:10px 14px; font-size:14px; width:100%; outline:none; }
+    .fc:focus { border-color:var(--primary); }
+    /* 헤더 */
+    .admin-header { background:var(--primary); color:#fff; padding:16px 32px; display:flex; align-items:center; justify-content:space-between; }
+    .admin-header h1 { font-size:18px; font-weight:700; margin:0; }
+    /* 탭 */
+    .tab-bar { background:var(--card); border-bottom:1px solid var(--border); padding:0 32px; display:flex; gap:4px; }
+    .tab-btn { padding:14px 20px; font-size:14px; font-weight:500; color:var(--text-sub); border:none; background:none; cursor:pointer; border-bottom:2px solid transparent; }
+    .tab-btn.active { color:var(--primary); border-bottom-color:var(--primary); font-weight:600; }
+    /* 콘텐츠 */
+    .content { padding:28px 32px; max-width:1100px; }
+    .section { display:none; }
+    .section.active { display:block; }
+    /* 카드 */
+    .card-c { background:var(--card); border-radius:12px; border:1px solid var(--border); margin-bottom:20px; overflow:hidden; }
+    .card-h { padding:16px 20px; background:var(--primary); color:#fff; font-weight:700; font-size:16px; display:flex; align-items:center; justify-content:space-between; }
+    .card-body { padding:0; }
+    /* 클래스 행 */
+    .cls-row { display:grid; grid-template-columns:1fr 80px 1fr; align-items:center; padding:12px 20px; border-bottom:1px solid var(--border); gap:12px; }
+    .cls-row:last-child { border-bottom:none; }
+    .cls-name { font-weight:600; font-size:14px; }
+    .cls-count { font-size:13px; color:var(--text-sub); text-align:center; }
+    .prog { background:#e5e7eb; border-radius:99px; height:8px; overflow:hidden; flex:1; }
+    .prog-f { height:100%; border-radius:99px; background:var(--success); transition:width .4s; }
+    .prog-wrap { display:flex; align-items:center; gap:8px; }
+    .rate-lbl { font-size:13px; font-weight:600; width:36px; text-align:right; }
+    /* 선생님 요약 */
+    .teacher-summary { display:flex; gap:16px; padding:16px 20px; border-bottom:1px solid var(--border); background:#f8fafc; }
+    .summary-chip { background:var(--primary-light); color:var(--primary); border-radius:8px; padding:6px 14px; font-size:13px; font-weight:600; }
+    /* 선생님 관리 테이블 */
+    .tbl { width:100%; border-collapse:collapse; font-size:14px; }
+    .tbl th { background:#f8fafc; padding:12px 16px; text-align:left; font-weight:600; color:var(--text-sub); border-bottom:1px solid var(--border); }
+    .tbl td { padding:12px 16px; border-bottom:1px solid var(--border); vertical-align:middle; }
+    .tbl tr:last-child td { border-bottom:none; }
+    .btn-p { background:var(--primary); border:none; color:#fff; border-radius:8px; padding:8px 18px; font-size:13.5px; font-weight:500; cursor:pointer; }
+    .btn-p:hover { background:#4338ca; }
+    .btn-d { background:#fee2e2; border:none; color:#991b1b; border-radius:8px; padding:6px 14px; font-size:13px; font-weight:500; cursor:pointer; }
+    .btn-d:hover { background:#fecaca; }
+    .btn-o { border:1px solid var(--border); background:var(--card); color:var(--text-sub); border-radius:8px; padding:7px 14px; font-size:13px; cursor:pointer; }
+    /* 모달 */
+    .modal-ov { display:none; position:fixed; inset:0; background:rgba(0,0,0,.4); z-index:999; align-items:center; justify-content:center; }
+    .modal-ov.open { display:flex; }
+    .modal-bx { background:var(--card); border-radius:14px; padding:28px; width:380px; }
+    .modal-bx h5 { font-weight:700; margin-bottom:20px; }
+    .modal-ft { display:flex; gap:8px; justify-content:flex-end; margin-top:20px; }
+    .badge-admin { background:#fef3c7; color:#92400e; border-radius:20px; padding:2px 10px; font-size:12px; font-weight:600; }
+    .badge-teacher { background:#dcfce7; color:#166534; border-radius:20px; padding:2px 10px; font-size:12px; font-weight:600; }
+    .empty { text-align:center; padding:40px; color:var(--text-muted); }
+    .logout-btn { background:rgba(255,255,255,.2); border:none; color:#fff; border-radius:8px; padding:7px 14px; font-size:13px; cursor:pointer; }
+    .logout-btn:hover { background:rgba(255,255,255,.3); }
+    .refresh-btn { background:rgba(255,255,255,.15); border:none; color:#fff; border-radius:8px; padding:7px 12px; font-size:13px; cursor:pointer; margin-right:8px; }
+    .pw-dot { color:var(--text-muted); letter-spacing:2px; }
+    .toggle-pw { background:none; border:none; color:var(--primary); font-size:12px; cursor:pointer; margin-left:6px; }
+  </style>
+</head>
+<body>
+
+<!-- 로그인 화면 -->
+<div class="login-screen" id="loginScreen">
+  <div class="login-box">
+    <div style="font-size:44px;margin-bottom:12px">🛡️</div>
+    <h5 style="font-weight:700;margin-bottom:4px">관리자 대시보드</h5>
+    <p style="font-size:13px;color:var(--text-muted);margin-bottom:24px">관리자 비밀번호를 입력해주세요</p>
+    <input type="password" class="fc" id="pwInput" placeholder="비밀번호" style="margin-bottom:12px" onkeydown="if(event.key==='Enter')checkPw()">
+    <div id="pwErr" style="display:none;color:#ef4444;font-size:13px;margin-bottom:8px">비밀번호가 올바르지 않습니다</div>
+    <button class="btn-p" style="width:100%;padding:12px" onclick="checkPw()">로그인</button>
+  </div>
+</div>
+
+<!-- 메인 -->
+<div id="mainWrap" style="display:none">
+  <div class="admin-header">
+    <h1>🛡️ 관리자 대시보드</h1>
+    <div>
+      <button class="refresh-btn" onclick="loadAll()">🔄 새로고침</button>
+      <button class="logout-btn" onclick="doLogout()">로그아웃</button>
+    </div>
+  </div>
+  <div class="tab-bar">
+    <button class="tab-btn active" onclick="showTab('overview')">📊 전체 현황</button>
+    <button class="tab-btn" onclick="showTab('manage')">👤 선생님 관리</button>
+  </div>
+  <div class="content">
+
+    <!-- 전체 현황 -->
+    <div class="section active" id="sec-overview">
+      <div id="overviewList"></div>
+    </div>
+
+    <!-- 선생님 관리 -->
+    <div class="section" id="sec-manage">
+      <div class="d-flex justify-content-between align-items-center mb-3">
+        <div style="font-size:18px;font-weight:700">선생님 계정</div>
+        <button class="btn-p" onclick="openAddModal()">+ 선생님 추가</button>
+      </div>
+      <div class="card-c">
+        <table class="tbl">
+          <thead>
+            <tr>
+              <th>이름</th>
+              <th>권한</th>
+              <th>비밀번호</th>
+              <th>담당 학생</th>
+              <th>관리</th>
+            </tr>
+          </thead>
+          <tbody id="teacherTableBody"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- 선생님 추가 모달 -->
+<div class="modal-ov" id="addModal">
+  <div class="modal-bx">
+    <h5>선생님 추가</h5>
+    <div class="mb-3">
+      <label style="font-size:13px;font-weight:600;display:block;margin-bottom:6px">이름 *</label>
+      <input type="text" class="fc" id="newName" placeholder="선생님 이름">
+    </div>
+    <div class="mb-3">
+      <label style="font-size:13px;font-weight:600;display:block;margin-bottom:6px">비밀번호 *</label>
+      <input type="text" class="fc" id="newPw" placeholder="숫자 4자리 이상">
+    </div>
+    <div id="addErr" style="display:none;color:#ef4444;font-size:13px;margin-top:-8px;margin-bottom:4px"></div>
+    <div class="modal-ft">
+      <button class="btn-o" onclick="closeAddModal()">취소</button>
+      <button class="btn-p" onclick="doAddTeacher()">추가</button>
+    </div>
+  </div>
+</div>
+
+<script>
+const SUPABASE_URL = 'https://umvblxlwllgpypxhtpcp.supabase.co';
+const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVtdmJseGx3bGxncHlweGh0cGNwIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQ5MzQ2ODUsImV4cCI6MjA5MDUxMDY4NX0.yTXix8cAm0iyL2E1RoO2zpmfzUq7BePV_PFKDkz_IjU';
+const ADMIN_KEY = 'adminAuth_v1';
+const { createClient } = supabase;
+const db = createClient(SUPABASE_URL, SUPABASE_KEY);
+
+let _teachers = [], _students = [], _homeworks = [], _submissions = {};
+
+// ── 로그인 ──────────────────────────────────────────────────
+async function checkPw() {
+  const v = document.getElementById('pwInput').value;
+  const { data } = await db.from('teachers').select('*').eq('password', v).eq('is_admin', true).single();
+  if (data) {
+    localStorage.setItem(ADMIN_KEY, '1');
+    document.getElementById('loginScreen').style.display = 'none';
+    document.getElementById('mainWrap').style.display = 'block';
+    loadAll();
+  } else {
+    document.getElementById('pwErr').style.display = 'block';
+    document.getElementById('pwInput').value = '';
+  }
+}
+function doLogout() {
+  localStorage.removeItem(ADMIN_KEY);
+  location.reload();
+}
+document.getElementById('pwInput').addEventListener('keydown', e => { if (e.key === 'Enter') checkPw(); });
+
+// 자동 로그인
+if (localStorage.getItem(ADMIN_KEY) === '1') {
+  document.getElementById('loginScreen').style.display = 'none';
+  document.getElementById('mainWrap').style.display = 'block';
+  document.addEventListener('DOMContentLoaded', loadAll);
+}
+
+// ── 탭 ──────────────────────────────────────────────────────
+function showTab(name) {
+  document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
+  document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+  document.getElementById('sec-' + name).classList.add('active');
+  event.target.classList.add('active');
+}
+
+// ── 데이터 로드 ──────────────────────────────────────────────
+async function loadAll() {
+  await Promise.all([loadTeachers(), loadStudents(), loadHomeworks()]);
+  await loadSubmissions();
+  renderOverview();
+  renderTeacherTable();
+}
+
+async function loadTeachers() {
+  const { data } = await db.from('teachers').select('*').order('created_at');
+  _teachers = data || [];
+}
+async function loadStudents() {
+  const { data } = await db.from('students').select('id, name, class, teacher_name').order('teacher_name').order('class');
+  _students = data || [];
+}
+async function loadHomeworks() {
+  const cutoff = new Date();
+  cutoff.setDate(cutoff.getDate() - 14);
+  const { data } = await db.from('homeworks')
+    .select('*, homework_classes(*)')
+    .gte('due_date', cutoff.toISOString().split('T')[0])
+    .order('due_date', { ascending: false });
+  _homeworks = data || [];
+}
+async function loadSubmissions() {
+  if (!_homeworks.length) return;
+  const hwIds = _homeworks.map(h => h.id);
+  const { data } = await db.from('submissions').select('homework_id, student_id, submitted').in('homework_id', hwIds);
+  _submissions = {};
+  (data || []).forEach(s => {
+    if (!_submissions[s.homework_id]) _submissions[s.homework_id] = {};
+    _submissions[s.homework_id][s.student_id] = s.submitted;
+  });
+}
+
+// ── 현황 렌더링 ───────────────────────────────────────────────
+function renderOverview() {
+  const container = document.getElementById('overviewList');
+  const nonAdmins = _teachers.filter(t => !t.is_admin);
+  if (!nonAdmins.length) { container.innerHTML = '<div class="empty">등록된 선생님이 없습니다</div>'; return; }
+
+  container.innerHTML = nonAdmins.map(teacher => {
+    const myStu = _students.filter(s => s.teacher_name === teacher.name);
+    const myClasses = [...new Set(myStu.map(s => s.class))].sort();
+
+    // 전체 제출률 계산
+    let totalAssigned = 0, totalSubmitted = 0;
+    myClasses.forEach(cls => {
+      const clsStu = myStu.filter(s => s.class === cls);
+      const clsHws = _homeworks.filter(hw =>
+        (hw.homework_classes || []).some(hc => hc.class_name === cls)
+      );
+      clsStu.forEach(stu => {
+        clsHws.forEach(hw => {
+          totalAssigned++;
+          if (_submissions[hw.id]?.[stu.id]) totalSubmitted++;
+        });
+      });
+    });
+    const overallRate = totalAssigned ? Math.round(totalSubmitted / totalAssigned * 100) : null;
+
+    // 반별 상세
+    const clsRows = myClasses.map(cls => {
+      const clsStu = myStu.filter(s => s.class === cls);
+      const clsHws = _homeworks.filter(hw =>
+        (hw.homework_classes || []).some(hc => hc.class_name === cls)
+      );
+      let asgn = 0, sub = 0;
+      clsStu.forEach(stu => {
+        clsHws.forEach(hw => {
+          asgn++;
+          if (_submissions[hw.id]?.[stu.id]) sub++;
+        });
+      });
+      const rate = asgn ? Math.round(sub / asgn * 100) : null;
+      const color = rate === null ? '#9ca3af' : rate >= 80 ? '#10b981' : rate >= 50 ? '#f59e0b' : '#ef4444';
+      return `
+        <div class="cls-row">
+          <div class="cls-name">${cls}</div>
+          <div class="cls-count">${clsStu.length}명</div>
+          <div class="prog-wrap">
+            <div class="prog"><div class="prog-f" style="width:${rate ?? 0}%;background:${color}"></div></div>
+            <span class="rate-lbl" style="color:${color}">${rate !== null ? rate + '%' : '-'}</span>
+          </div>
+        </div>`;
+    }).join('');
+
+    const rateColor = overallRate === null ? '#9ca3af' : overallRate >= 80 ? '#10b981' : overallRate >= 50 ? '#f59e0b' : '#ef4444';
+
+    return `
+      <div class="card-c">
+        <div class="card-h">
+          <span>👤 ${teacher.name}T</span>
+          <span style="font-size:14px;font-weight:400;opacity:.85">전체 제출률</span>
+        </div>
+        <div class="teacher-summary">
+          <div class="summary-chip">학생 ${myStu.length}명</div>
+          <div class="summary-chip">반 ${myClasses.length}개</div>
+          <div class="summary-chip" style="background:${overallRate !== null ? '#dcfce7' : '#f3f4f6'};color:${rateColor}">
+            제출률 ${overallRate !== null ? overallRate + '%' : '-'}
+          </div>
+        </div>
+        <div class="card-body">
+          ${clsRows || '<div class="empty" style="padding:20px">등록된 학생이 없습니다</div>'}
+        </div>
+      </div>`;
+  }).join('');
+}
+
+// ── 선생님 관리 렌더링 ────────────────────────────────────────
+function renderTeacherTable() {
+  const tbody = document.getElementById('teacherTableBody');
+  if (!_teachers.length) {
+    tbody.innerHTML = '<tr><td colspan="5" class="empty">선생님이 없습니다</td></tr>';
+    return;
+  }
+  tbody.innerHTML = _teachers.map(t => {
+    const stuCount = _students.filter(s => s.teacher_name === t.name).length;
+    const canDelete = !t.is_admin && stuCount === 0;
+    return `
+      <tr>
+        <td style="font-weight:600">${t.name}</td>
+        <td>${t.is_admin
+          ? '<span class="badge-admin">관리자</span>'
+          : '<span class="badge-teacher">선생님</span>'}</td>
+        <td>
+          <span id="pw_${t.id}" class="pw-dot">••••</span>
+          <button class="toggle-pw" onclick="togglePw('${t.id}','${t.password}')">보기</button>
+        </td>
+        <td>${stuCount}명</td>
+        <td>
+          ${t.is_admin ? '-' : `
+            <button class="btn-d" onclick="doDelete('${t.id}','${t.name}',${stuCount})"
+              ${!canDelete ? 'style="opacity:.4;cursor:not-allowed" title="학생이 있으면 삭제할 수 없습니다"' : ''}>
+              삭제
+            </button>`}
+        </td>
+      </tr>`;
+  }).join('');
+}
+
+function togglePw(id, pw) {
+  const el = document.getElementById('pw_' + id);
+  if (el.textContent === '••••') { el.textContent = pw; el.style.color = 'var(--text)'; }
+  else { el.textContent = '••••'; el.style.color = ''; }
+}
+
+// ── 선생님 추가 ────────────────────────────────────────────────
+function openAddModal() {
+  document.getElementById('newName').value = '';
+  document.getElementById('newPw').value = '';
+  document.getElementById('addErr').style.display = 'none';
+  document.getElementById('addModal').classList.add('open');
+}
+function closeAddModal() { document.getElementById('addModal').classList.remove('open'); }
+
+async function doAddTeacher() {
+  const name = document.getElementById('newName').value.trim();
+  const pw = document.getElementById('newPw').value.trim();
+  const errEl = document.getElementById('addErr');
+  errEl.style.display = 'none';
+  if (!name) { errEl.textContent = '이름을 입력해주세요'; errEl.style.display = 'block'; return; }
+  if (!pw || pw.length < 4) { errEl.textContent = '비밀번호는 4자 이상이어야 합니다'; errEl.style.display = 'block'; return; }
+  if (_teachers.some(t => t.name === name)) { errEl.textContent = '이미 존재하는 이름입니다'; errEl.style.display = 'block'; return; }
+  const { error } = await db.from('teachers').insert({ name, password: pw, is_admin: false });
+  if (error) { errEl.textContent = '오류: ' + error.message; errEl.style.display = 'block'; return; }
+  closeAddModal();
+  await loadAll();
+}
+
+// ── 선생님 삭제 ────────────────────────────────────────────────
+async function doDelete(id, name, stuCount) {
+  if (stuCount > 0) { alert(`${name} 선생님 담당 학생이 ${stuCount}명 있어서 삭제할 수 없어요.\n먼저 학생을 다른 선생님에게 이전하거나 삭제해주세요.`); return; }
+  if (!confirm(`${name} 선생님을 삭제하시겠습니까?`)) return;
+  await db.from('teachers').delete().eq('id', id);
+  await loadAll();
+}
+</script>
+</body>
+</html>

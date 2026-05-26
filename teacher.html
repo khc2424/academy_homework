@@ -645,7 +645,8 @@ document.getElementById('pwInput').addEventListener('keydown', e=>{ if(e.key==='
 
 // ---- Init ----
 async function init() {
-  await Promise.all([loadStudents(), loadHomeworks()]);
+  await loadStudents(); // 먼저 학생 로드 (담당 반 파악용)
+  await loadHomeworks(); // 학생 클래스 기준으로 필터
   await Promise.all([loadSubmissions(), loadPhotos(), loadExtensions(), loadTemplates()]);
   renderDashboard();
   populateSelects();
@@ -664,7 +665,14 @@ async function loadStudents() {
 }
 async function loadHomeworks() {
   const { data } = await db.from('homeworks').select('*, homework_classes(*)').order('due_date', {ascending:false});
-  _homeworks = data || [];
+  if (currentTeacher && !currentTeacher.isAdmin) {
+    const myCls = new Set(_students.map(s => s.class));
+    _homeworks = (data || []).filter(hw =>
+      (hw.homework_classes || []).some(hc => myCls.has(hc.class_name))
+    );
+  } else {
+    _homeworks = data || [];
+  }
 }
 async function loadSubmissions() {
   const { data } = await db.from('submissions').select('*');

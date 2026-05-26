@@ -166,14 +166,8 @@
 
 <!-- Login Script (별도 분리) -->
 <script>
-// ── 선생님 계정 설정 ──────────────────────────────────────
-// isAdmin: true → 전체 반 열람 가능
-var TEACHERS_CONFIG = [
-  { password: '2424', name: '관리자', isAdmin: true },
-  { password: '2889', name: '김형철', isAdmin: false },
-  { password: '0435', name: '박기태', isAdmin: false },
-];
-var currentTeacher = null; // 로그인 후 설정됨
+var TEACHERS_CONFIG = []; // DB에서 로드됨
+var currentTeacher = null;
 </script>
 
 <!-- Login Screen -->
@@ -596,12 +590,19 @@ let clsRowCnt=0;
 // ---- Login ----
 const TEACHER_AUTH_KEY = 'teacherAuth_v2'; // v2: 선생님 이름 저장 방식
 
-function checkPw() {
+async function checkPw() {
   const v = document.getElementById('pwInput').value;
+  if (!v) return;
+  // TEACHERS_CONFIG가 아직 안 로드됐으면 직접 DB 조회
+  if (!TEACHERS_CONFIG.length) {
+    const { data } = await db.from('teachers').select('*');
+    TEACHERS_CONFIG = (data || []).map(t => ({ password: t.password, name: t.name, isAdmin: t.is_admin }));
+  }
   const found = TEACHERS_CONFIG.find(t => t.password === v);
   if (found) {
     currentTeacher = found;
     localStorage.setItem(TEACHER_AUTH_KEY, JSON.stringify({ name: found.name, isAdmin: found.isAdmin }));
+    if (found.isAdmin) { location.href = 'admin.html'; return; }
     document.getElementById('loginScreen').style.display='none';
     applyTeacherUI();
     init();
@@ -623,23 +624,30 @@ function applyTeacherUI() {
 }
 document.getElementById('pwInput').addEventListener('keydown', e=>{ if(e.key==='Enter') checkPw(); });
 
-// 자동 로그인
-(function() {
+// 선생님 계정 DB 로드 + 자동 로그인
+async function initAuth() {
+  const { data } = await db.from('teachers').select('*');
+  TEACHERS_CONFIG = (data || []).map(t => ({
+    password: t.password, name: t.name, isAdmin: t.is_admin
+  }));
   const saved = localStorage.getItem(TEACHER_AUTH_KEY);
   if (saved) {
     try {
       const t = JSON.parse(saved);
-      // TEACHERS_CONFIG에서 일치하는 계정 찾기
       currentTeacher = TEACHERS_CONFIG.find(x => x.name === t.name) || null;
       if (currentTeacher) {
+        // 관리자는 admin.html로 리다이렉트
+        if (currentTeacher.isAdmin) { location.href = 'admin.html'; return; }
         document.getElementById('loginScreen').style.display='none';
-        document.addEventListener('DOMContentLoaded', ()=>{ applyTeacherUI(); if(typeof init==='function') init(); });
-      } else {
-        localStorage.removeItem(TEACHER_AUTH_KEY);
+        applyTeacherUI();
+        init();
+        return;
       }
-    } catch(e) { localStorage.removeItem(TEACHER_AUTH_KEY); }
+    } catch(e) {}
+    localStorage.removeItem(TEACHER_AUTH_KEY);
   }
-})();
+}
+document.addEventListener('DOMContentLoaded', initAuth);
 
 // ---- Init ----
 async function init() {

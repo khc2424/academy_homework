@@ -180,7 +180,7 @@ var currentTeacher = null; // 로그인 후 설정됨
 <div class="login-screen" id="loginScreen">
   <div class="login-box">
     <div style="font-size:40px;margin-bottom:16px">🔐</div>
-    <h5 style="font-weight:700;margin-bottom:6px">김형철T 대시보드</h5>
+    <h5 style="font-weight:700;margin-bottom:6px">학원 대시보드</h5>
     <p style="font-size:13px;color:var(--text-muted);margin-bottom:24px">비밀번호를 입력해주세요</p>
     <input type="password" class="fc" id="pwInput" placeholder="비밀번호" onkeydown="if(event.key==='Enter')checkPw()" style="margin-bottom:12px">
     <button class="btn-p" style="width:100%;padding:12px" onclick="checkPw()">로그인</button>
@@ -222,7 +222,7 @@ var currentTeacher = null; // 로그인 후 설정됨
 <!-- Sidebar -->
 <div class="sidebar" id="sidebar">
   <div class="sidebar-brand">
-    <div class="sidebar-brand-text">🎓 숙제 관리<span>김형철T 대시보드</span></div>
+    <div class="sidebar-brand-text">🎓 숙제 관리<span id="sidebarTeacherLabel">김형철T 대시보드</span></div>
     <button class="hamburger-btn" onclick="toggleSidebar()" title="메뉴 닫기">
       <span></span><span></span><span></span>
     </button>
@@ -618,10 +618,8 @@ function applyTeacherUI() {
   if (!currentTeacher) return;
   const label = currentTeacher.isAdmin ? '관리자' : currentTeacher.name + 'T';
   document.title = label + ' 대시보드';
-  const brand = document.querySelector('.sidebar-brand-text');
-  if (brand) brand.querySelector('b') ? brand.querySelector('b').textContent = label + ' 대시보드' : null;
-  const h5 = document.querySelector('.login-box h5');
-  if (h5) h5.textContent = label + ' 대시보드';
+  const sidebarLabel = document.getElementById('sidebarTeacherLabel');
+  if (sidebarLabel) sidebarLabel.textContent = label + ' 대시보드';
 }
 document.getElementById('pwInput').addEventListener('keydown', e=>{ if(e.key==='Enter') checkPw(); });
 
@@ -684,7 +682,12 @@ async function loadSubmissions() {
 }
 async function loadPhotos() {
   const { data } = await db.from('submissions').select('*, students(name,class), homeworks(subject,due_date,homework_classes(*))').eq('submitted', true).not('photo_urls','is',null).order('submitted_at', {ascending:false});
-  _photoSubs = (data||[]).filter(s => s.photo_urls && s.photo_urls.length > 0);
+  let filtered = (data||[]).filter(s => s.photo_urls && s.photo_urls.length > 0);
+  if (currentTeacher && !currentTeacher.isAdmin) {
+    const myStudentIds = new Set(_students.map(s => s.id));
+    filtered = filtered.filter(s => myStudentIds.has(s.student_id));
+  }
+  _photoSubs = filtered;
   const unreviewed = _photoSubs.filter(s=>!s.reviewed).length;
   const badge = document.getElementById('newCount');
   badge.textContent = unreviewed;
@@ -1946,7 +1949,12 @@ async function loadExtensions() {
   const { data } = await db.from('extension_requests')
     .select('*, students(name,class), homeworks(due_date,homework_classes(class_name,textbook))')
     .order('created_at', {ascending:false});
-  _extensions = data || [];
+  if (currentTeacher && !currentTeacher.isAdmin) {
+    const myStudentIds = new Set(_students.map(s => s.id));
+    _extensions = (data || []).filter(e => myStudentIds.has(e.student_id));
+  } else {
+    _extensions = data || [];
+  }
   const pending = _extensions.filter(e=>e.status==='pending').length;
   const badge = document.getElementById('extCount');
   badge.textContent = pending;

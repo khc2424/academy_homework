@@ -211,20 +211,12 @@
   <div class="login-box-s">
     <div style="text-align:center;font-size:48px;margin-bottom:8px">📚</div>
     <div style="text-align:center;font-size:20px;font-weight:800;color:#3C1E1E;margin-bottom:4px">숙제 제출</div>
-    <div style="text-align:center;font-size:13px;color:#888;margin-bottom:24px">반과 이름, 비밀번호를 입력해주세요</div>
-    <label style="font-size:13px;color:#555;font-weight:600;display:block;margin-bottom:6px">반 *</label>
-    <select class="login-sel" id="loginClassSel">
-      <option value="">반을 선택하세요</option>
-    </select>
-    <label style="font-size:13px;color:#555;font-weight:600;display:block;margin-bottom:6px">이름 *</label>
-    <select class="login-sel" id="loginNameSel" disabled>
-      <option value="">먼저 반을 선택하세요</option>
-    </select>
-    <label style="font-size:13px;color:#555;font-weight:600;display:block;margin-bottom:6px">비밀번호 *</label>
-    <input class="login-inp" id="loginPwInput" type="password" placeholder="비밀번호 입력" onkeydown="if(event.key==='Enter')doStudentLogin()">
+    <div style="text-align:center;font-size:13px;color:#888;margin-bottom:24px">전화번호를 입력하면 자동으로 로그인돼요</div>
+    <label style="font-size:13px;color:#555;font-weight:600;display:block;margin-bottom:6px">전화번호 *</label>
+    <input class="login-inp" id="loginPhoneInput" type="tel" placeholder="예: 010-1234-5678" onkeydown="if(event.key==='Enter')doStudentLogin()" style="margin-bottom:12px">
     <div id="stuLoginErr" style="display:none;color:#ef4444;font-size:13px;margin-bottom:8px;text-align:center"></div>
     <button onclick="doStudentLogin()" style="width:100%;padding:14px;background:#FEE500;border:none;border-radius:12px;font-size:16px;font-weight:800;color:#3C1E1E;cursor:pointer;margin-top:4px">로그인</button>
-    <div style="text-align:center;margin-top:14px;font-size:12px;color:#aaa">초기 비밀번호: 전화번호 뒷 4자리</div>
+    <div style="text-align:center;margin-top:14px;font-size:12px;color:#aaa">한 번 로그인하면 다음부터 자동으로 접속돼요</div>
   </div>
 </div>
 
@@ -438,59 +430,25 @@ let _isFirstLogin = false;
 // ============================================================
 //  로그인 시스템
 // ============================================================
-async function loadLoginClasses() {
-  const { data } = await db.from('students').select('class').order('class');
-  if (!data) return;
-  const classes = [...new Set(data.map(r => r.class))].sort();
-  const sel = document.getElementById('loginClassSel');
-  sel.innerHTML = '<option value="">반을 선택하세요</option>';
-  classes.forEach(c => {
-    const opt = document.createElement('option');
-    opt.value = c; opt.textContent = c + '반';
-    sel.appendChild(opt);
-  });
-}
-
-document.getElementById('loginClassSel').addEventListener('change', async function() {
-  const cls = this.value;
-  const nameSel = document.getElementById('loginNameSel');
-  nameSel.innerHTML = '<option value="">이름을 선택하세요</option>';
-  nameSel.disabled = !cls;
-  if (!cls) return;
-  const { data } = await db.from('students').select('*').eq('class', cls).order('name');
-  if (data) {
-    data.forEach(s => {
-      const opt = document.createElement('option');
-      opt.value = s.id; opt.textContent = s.name;
-      opt.dataset.s = JSON.stringify(s);
-      nameSel.appendChild(opt);
-    });
-  }
-});
+// 전화번호 로그인 방식으로 변경됨 — loadLoginClasses 불필요
 
 async function doStudentLogin() {
-  const cls = document.getElementById('loginClassSel').value;
-  const stuId = document.getElementById('loginNameSel').value;
-  const pw = document.getElementById('loginPwInput').value;
+  const rawPhone = document.getElementById('loginPhoneInput').value.trim();
   const errEl = document.getElementById('stuLoginErr');
   errEl.style.display = 'none';
-  if (!cls) { errEl.textContent = '반을 선택해주세요'; errEl.style.display = 'block'; return; }
-  if (!stuId) { errEl.textContent = '이름을 선택해주세요'; errEl.style.display = 'block'; return; }
-  if (!pw) { errEl.textContent = '비밀번호를 입력해주세요'; errEl.style.display = 'block'; return; }
-  const { data: stu, error } = await db.from('students').select('*').eq('id', stuId).single();
-  if (error || !stu) { errEl.textContent = '학생 정보를 찾을 수 없습니다'; errEl.style.display = 'block'; return; }
-  // 비밀번호 확인: password null이면 전화번호 뒷 4자리가 기본값
-  const defaultPw = (stu.phone || '').replace(/\D/g, '').slice(-4);
-  const storedPw = stu.password !== null && stu.password !== undefined ? stu.password : defaultPw;
-  if (pw !== storedPw) { errEl.textContent = '비밀번호가 올바르지 않습니다'; errEl.style.display = 'block'; return; }
+  if (!rawPhone) { errEl.textContent = '전화번호를 입력해주세요'; errEl.style.display = 'block'; return; }
+  const digits = rawPhone.replace(/\D/g, '');
+  if (digits.length < 4) { errEl.textContent = '전화번호를 정확히 입력해주세요'; errEl.style.display = 'block'; return; }
+  const { data: students } = await db.from('students').select('*');
+  const stu = (students || []).find(s => {
+    const sDigits = (s.phone || '').replace(/\D/g, '');
+    return sDigits && sDigits === digits;
+  });
+  if (!stu) { errEl.textContent = '등록된 전화번호를 찾을 수 없습니다'; errEl.style.display = 'block'; return; }
   _loggedStudent = stu;
   localStorage.setItem('stuLogin', JSON.stringify({ id: stu.id }));
   document.getElementById('loginScreen').style.display = 'none';
   showMainForm();
-  // 첫 로그인 (비밀번호 미설정)이면 변경 팝업
-  if (!stu.password) {
-    setTimeout(() => showPwChangeModal(true), 400);
-  }
 }
 
 async function checkAutoLogin() {
@@ -621,7 +579,6 @@ document.title = ACADEMY_NAME + ' 숙제 제출';
 
 async function init() {
   await loadHomeworks();
-  await loadLoginClasses();
   await checkAutoLogin();
 }
 

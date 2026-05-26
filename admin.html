@@ -95,16 +95,37 @@
     @keyframes slideIn { from{transform:translateX(60px);opacity:0} to{transform:translateX(0);opacity:1} }
 
     /* 선생님 탭 */
-    .teacher-tab { display:flex; flex-direction:column; align-items:center; gap:3px;
-      padding:10px 18px; border-radius:10px; border:2px solid var(--border);
-      background:var(--card); color:var(--text-sub); font-weight:500;
-      cursor:pointer; font-size:14px; transition:all .15s; white-space:nowrap; }
+    .teacher-tab { display:flex; flex-direction:column; align-items:center; gap:3px; padding:10px 18px; border-radius:10px; border:2px solid var(--border); background:var(--card); color:var(--text-sub); font-weight:500; cursor:pointer; font-size:14px; transition:all .15s; white-space:nowrap; }
     .teacher-tab.active { border-color:var(--primary); background:var(--primary-light); color:var(--primary); font-weight:700; }
     .teacher-tab:hover:not(.active) { border-color:var(--primary); background:var(--primary-light); }
 
     /* 반 블록 */
-    .class-block { border:1px solid var(--border); border-radius:10px; padding:14px 18px; margin-bottom:12px; background:var(--gray-50); }
-    .class-inner { background:var(--card); border-radius:8px; padding:10px; border:1px solid var(--border); }
+    .class-block { border:1px solid var(--border); border-radius:10px; padding:14px 18px; margin-bottom:12px; }
+
+    /* 섹션 박스 (제출/연장/미제출) */
+    .sec-box { background:var(--card); border-radius:8px; padding:10px 12px; border:1px solid var(--border); }
+    .sec-label { font-size:11px; font-weight:700; margin-bottom:8px; }
+
+    /* 이름 2열 그리드 */
+    .name-grid { display:grid; grid-template-columns:1fr 1fr; gap:3px 6px; }
+
+    /* 클릭 가능한 이름 칩 */
+    .name-chip { font-size:12.5px; padding:4px 8px; border-radius:6px; cursor:pointer; border:1px solid transparent; transition:all .12s; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+    .name-chip:hover { border-color:var(--primary); background:var(--primary-light); color:var(--primary); }
+    .name-chip-sub { font-size:10px; color:var(--text-muted); display:block; line-height:1.3; }
+
+    /* 학생 상세 팝업 */
+    .popup-ov { display:none; position:fixed; inset:0; background:rgba(0,0,0,.45); z-index:2000; align-items:center; justify-content:center; }
+    .popup-ov.show { display:flex; }
+    .popup-bx { background:var(--card); border-radius:14px; width:320px; box-shadow:0 16px 48px rgba(0,0,0,.25); }
+    .popup-hd { padding:16px 20px; border-bottom:1px solid var(--border); display:flex; justify-content:space-between; align-items:center; }
+    .popup-bd { padding:16px 20px; }
+    .info-row { display:flex; justify-content:space-between; align-items:center; padding:8px 0; border-bottom:1px solid var(--border); font-size:13.5px; }
+    .info-row:last-child { border-bottom:none; }
+    .info-lbl { color:var(--text-muted); font-size:12px; }
+    .info-val { font-weight:600; }
+    .call-btn { background:none; border:1px solid var(--border); border-radius:6px; padding:3px 10px; font-size:12px; cursor:pointer; color:var(--primary); margin-left:8px; }
+    .call-btn:hover { background:var(--primary-light); }
 
     /* 기타 */
     .empty { text-align:center; padding:48px 16px; color:var(--text-sub); }
@@ -117,8 +138,8 @@
     body.dark .tbl tbody tr:hover { background:#1e2536 !important; }
     body.dark .nav-btn.active { background:#1e2536; color:#818cf8; }
     body.dark .card-c { border-color:#334155 !important; }
-    body.dark .class-block { background:#161b27 !important; border-color:#2a3347 !important; }
-    body.dark .class-inner { background:#1e293b !important; border-color:#2a3347 !important; }
+    body.dark .class-block { border-color:#2a3347 !important; background:#1a2235 !important; }
+    body.dark .sec-box { background:#1e293b !important; border-color:#2a3347 !important; }
     body.dark .prog { background:#2a3347; }
     body.dark .teacher-tab { background:var(--card); border-color:var(--border); }
     body.dark .teacher-tab.active { background:#1e1b4b; border-color:#818cf8; }
@@ -127,7 +148,7 @@
     .sidebar-overlay { display:none; position:fixed; inset:0; background:rgba(0,0,0,.45); z-index:99; }
     .sidebar-overlay.show { display:block; }
     @media (max-width:768px) {
-      .sidebar { transform:translateX(-220px); width:220px !important; transition:transform .25s,box-shadow .25s,background .2s; }
+      .sidebar { transform:translateX(-220px); width:220px !important; transition:transform .25s,box-shadow .25s; }
       .sidebar.open { transform:translateX(0); box-shadow:4px 0 24px rgba(0,0,0,.35); }
       .sidebar.collapsed { transform:translateX(-220px); }
       .main { margin-left:0 !important; padding:14px 12px !important; }
@@ -155,6 +176,17 @@
   <span></span><span></span><span></span>
 </button>
 
+<!-- 학생 상세 팝업 -->
+<div class="popup-ov" id="stuPopup" onclick="if(event.target===this)closeStuPopup()">
+  <div class="popup-bx">
+    <div class="popup-hd">
+      <span style="font-weight:700;font-size:16px" id="popupTitle">학생 정보</span>
+      <button class="btn-o" style="padding:4px 10px" onclick="closeStuPopup()">✕</button>
+    </div>
+    <div class="popup-bd" id="popupBody"></div>
+  </div>
+</div>
+
 <div id="mainWrap" style="display:none">
 
   <!-- 사이드바 -->
@@ -168,7 +200,7 @@
       <button class="nav-btn" id="nav-manage" onclick="showPage('manage')">👤 선생님 관리</button>
     </nav>
     <div style="position:absolute;bottom:16px;left:0;right:0;padding:0 8px;display:flex;flex-direction:column;gap:6px">
-      <a href="teacher.html" style="display:block;background:var(--primary-light);color:var(--primary);text-align:center;padding:10px;border-radius:8px;font-size:13px;font-weight:700;text-decoration:none;white-space:nowrap">📚 선생님 대시보드</a>
+      <button onclick="goToTeacher()" style="display:block;width:100%;background:var(--primary-light);color:var(--primary);text-align:center;padding:10px;border-radius:8px;font-size:13px;font-weight:700;text-decoration:none;white-space:nowrap;border:none;cursor:pointer">📚 선생님 대시보드</button>
       <button onclick="toggleDark()" id="darkToggleBtn" style="border:1px solid var(--border);background:var(--card);color:var(--text);border-radius:8px;padding:9px;font-size:13px;cursor:pointer;width:100%;white-space:nowrap">🌙 다크 모드</button>
       <button onclick="doLogout()" style="border:1px solid var(--border);background:var(--card);color:var(--text-muted);border-radius:8px;padding:9px;font-size:12px;cursor:pointer;width:100%;white-space:nowrap">🔓 로그아웃</button>
     </div>
@@ -181,17 +213,13 @@
     <div class="page active" id="page-classes">
       <div class="page-title">🏫 반별 현황</div>
 
-      <!-- 날짜 선택 + 새로고침 -->
       <div style="display:flex;align-items:center;gap:10px;margin-bottom:20px;flex-wrap:wrap">
         <input type="date" class="fc" id="dateInput" style="width:160px" onchange="onDateChange()">
         <button class="btn-p" onclick="loadAll()">🔄 새로고침</button>
         <span id="dateLabel" style="font-size:13px;color:var(--text-muted)"></span>
       </div>
 
-      <!-- 선생님 탭 -->
       <div id="teacherTabs" style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:20px"></div>
-
-      <!-- 선택된 선생님 현황 -->
       <div id="classesList"></div>
     </div>
 
@@ -248,6 +276,8 @@ const db = createClient(SUPABASE_URL, SUPABASE_KEY);
 
 let _teachers = [], _students = [], _homeworks = [], _submissions = {}, _extensions = [];
 let _selectedTeacher = null;
+// 연장 정보 맵: homework_id -> student_id -> {reason, requested_until, requested_time, source}
+let _extMap = {};
 
 /* ── 다크모드 ── */
 function toggleDark() {
@@ -304,15 +334,17 @@ async function checkPw() {
   }
 }
 function doLogout() { localStorage.removeItem(ADMIN_KEY); location.reload(); }
+function goToTeacher() {
+  // 관리자 세션이 남아있으면 teacher.html이 다시 admin으로 튕기므로, 선생님 세션 키를 비우고 이동
+  localStorage.removeItem('teacherAuth_v2');
+  location.href = 'teacher.html';
+}
 document.getElementById('pwInput').addEventListener('keydown', e => { if (e.key === 'Enter') checkPw(); });
 
 if (localStorage.getItem(ADMIN_KEY) === '1') {
   document.getElementById('loginScreen').style.display = 'none';
   document.getElementById('mainWrap').style.display = 'block';
-  document.addEventListener('DOMContentLoaded', () => {
-    initDateInput();
-    loadAll();
-  });
+  document.addEventListener('DOMContentLoaded', () => { initDateInput(); loadAll(); });
 }
 
 /* ── 페이지 전환 ── */
@@ -326,8 +358,7 @@ function showPage(name) {
 
 /* ── 날짜 ── */
 function getTodayKST() {
-  const kst = new Date(Date.now() + 9 * 3600 * 1000);
-  return kst.toISOString().slice(0, 10);
+  return new Date(Date.now() + 9 * 3600 * 1000).toISOString().slice(0, 10);
 }
 function initDateInput() {
   const inp = document.getElementById('dateInput');
@@ -357,7 +388,7 @@ async function loadTeachers() {
   _teachers = data || [];
 }
 async function loadStudents() {
-  const { data } = await db.from('students').select('id, name, class, teacher_name').order('teacher_name').order('class');
+  const { data } = await db.from('students').select('id, name, class, phone, teacher_name').order('teacher_name').order('class');
   _students = data || [];
 }
 async function loadHomeworks() {
@@ -378,11 +409,18 @@ async function loadSubmissions() {
   });
 }
 async function loadExtensions() {
-  _extensions = [];
+  _extensions = []; _extMap = {};
   if (!_homeworks.length) return;
   const ids = _homeworks.map(h => h.id);
-  const { data } = await db.from('extension_requests').select('student_id, homework_id, status').in('homework_id', ids);
+  const { data } = await db.from('extension_requests')
+    .select('student_id, homework_id, status, reason, requested_until, requested_time, source')
+    .in('homework_id', ids);
   _extensions = data || [];
+  // 맵 구성
+  _extensions.forEach(e => {
+    if (!_extMap[e.homework_id]) _extMap[e.homework_id] = {};
+    _extMap[e.homework_id][e.student_id] = e;
+  });
 }
 
 /* ── 선생님 탭 ── */
@@ -397,26 +435,21 @@ function calcTeacherRate(teacher) {
   });
   return asgn ? Math.round(sub / asgn * 100) : null;
 }
-
 function renderTeacherTabs() {
   const tabsEl = document.getElementById('teacherTabs');
   const nonAdmins = _teachers.filter(t => !t.is_admin);
   if (!nonAdmins.length) { tabsEl.innerHTML = ''; return; }
-  if (!_selectedTeacher || !nonAdmins.find(t => t.name === _selectedTeacher)) {
-    _selectedTeacher = nonAdmins[0].name;
-  }
+  if (!_selectedTeacher || !nonAdmins.find(t => t.name === _selectedTeacher)) _selectedTeacher = nonAdmins[0].name;
   tabsEl.innerHTML = nonAdmins.map(t => {
     const rate = calcTeacherRate(t);
-    const rateColor = rate === null ? 'var(--text-muted)' : rate >= 80 ? '#10b981' : rate >= 50 ? '#f59e0b' : '#ef4444';
-    const isActive = t.name === _selectedTeacher;
-    return '<button class="teacher-tab' + (isActive ? ' active' : '') + '" onclick="selectTeacher(\'' + t.name + '\')">'
+    const rc = rate === null ? 'var(--text-muted)' : rate >= 80 ? '#10b981' : rate >= 50 ? '#f59e0b' : '#ef4444';
+    const active = t.name === _selectedTeacher;
+    return '<button class="teacher-tab' + (active ? ' active' : '') + '" onclick="selectTeacher(\'' + t.name + '\')">'
       + '👤 ' + t.name + 'T'
-      + '<span style="font-size:12px;font-weight:700;color:' + rateColor + '">'
-      + (rate !== null ? rate + '%' : '숙제없음') + '</span>'
+      + '<span style="font-size:12px;font-weight:700;color:' + rc + '">' + (rate !== null ? rate + '%' : '숙제없음') + '</span>'
       + '</button>';
   }).join('');
 }
-
 function selectTeacher(name) {
   _selectedTeacher = name;
   renderTeacherTabs();
@@ -434,23 +467,18 @@ function renderClasses() {
       + '<div style="font-size:13px;color:var(--text-muted)">해당 날짜 마감인 숙제가 없어요</div></div>';
     return;
   }
-
   const nonAdmins = _teachers.filter(t => !t.is_admin);
-  if (!nonAdmins.length) { container.innerHTML = '<div class="empty">등록된 선생님이 없습니다</div>'; return; }
-
   const teacher = nonAdmins.find(t => t.name === _selectedTeacher) || nonAdmins[0];
+  if (!teacher) { container.innerHTML = '<div class="empty">등록된 선생님이 없습니다</div>'; return; }
+
   const myStu = _students.filter(s => s.teacher_name === teacher.name);
   const myClasses = [...new Set(myStu.map(s => s.class))].sort();
 
-  // 전체 제출률
   let totalAsgn = 0, totalSub = 0;
   myClasses.forEach(cls => {
     const clsStu = myStu.filter(s => s.class === cls);
     const clsHws = _homeworks.filter(hw => (hw.homework_classes || []).some(hc => hc.class_name === cls));
-    clsStu.forEach(stu => clsHws.forEach(hw => {
-      totalAsgn++;
-      if (_submissions[hw.id]?.[stu.id]) totalSub++;
-    }));
+    clsStu.forEach(stu => clsHws.forEach(hw => { totalAsgn++; if (_submissions[hw.id]?.[stu.id]) totalSub++; }));
   });
 
   if (!totalAsgn) {
@@ -481,10 +509,21 @@ function renderClasses() {
     const clsHws = _homeworks.filter(hw => (hw.homework_classes || []).some(hc => hc.class_name === cls));
     if (!clsHws.length) return;
 
-    const extIds = new Set(_extensions.filter(e => clsHws.some(h => h.id === e.homework_id)).map(e => e.student_id));
-    const extStudents = clsStu.filter(s => extIds.has(s.id));
+    // 연장 신청한 학생 (homework별 extMap에서)
+    const extStudentIds = new Set();
+    clsHws.forEach(hw => {
+      if (_extMap[hw.id]) Object.keys(_extMap[hw.id]).forEach(sid => extStudentIds.add(sid));
+    });
+
+    // 제출 완료 (연장 신청 없이 제출)
+    const submitted = clsStu.filter(s =>
+      clsHws.some(hw => _submissions[hw.id]?.[s.id])
+    );
+    // 연장 신청
+    const extended = clsStu.filter(s => extStudentIds.has(s.id));
+    // 미제출 (연장 없고 제출도 없음)
     const notSubmitted = clsStu.filter(s =>
-      !extIds.has(s.id) && clsHws.every(hw => !_submissions[hw.id]?.[s.id])
+      !extStudentIds.has(s.id) && clsHws.every(hw => !_submissions[hw.id]?.[s.id])
     );
 
     let clsAsgn = 0, clsSub = 0;
@@ -494,37 +533,117 @@ function renderClasses() {
     const clsRate = clsAsgn ? Math.round(clsSub / clsAsgn * 100) : 0;
     const clsRateColor = clsRate >= 80 ? '#10b981' : clsRate >= 50 ? '#f59e0b' : '#ef4444';
 
-    const extHtml = extStudents.length
-      ? extStudents.map(s => '<div style="font-size:13px;padding:2px 0">' + s.name + '</div>').join('')
-      : '<div style="font-size:13px;color:var(--text-muted)">없음</div>';
-    const notHtml = notSubmitted.length
-      ? notSubmitted.map(s => '<div style="font-size:13px;padding:2px 0">' + s.name + '</div>').join('')
-      : '<div style="font-size:13px;color:var(--text-muted)">없음</div>';
+    // 제출 이름 그리드
+    const subNames = submitted.map(s =>
+      '<button class="name-chip" onclick="showStuPopup(\'' + s.id + '\',\'sub\')" '
+      + 'style="background:#f0fdf4;color:#166534;border-color:#bbf7d0;text-align:left">' + s.name + '</button>'
+    ).join('');
+
+    // 연장 이름 그리드 (이름 + 간단 정보)
+    const extNames = extended.map(s => {
+      // 첫 번째 관련 hw의 연장 정보
+      let extInfo = null;
+      for (const hw of clsHws) {
+        if (_extMap[hw.id]?.[s.id]) { extInfo = _extMap[hw.id][s.id]; break; }
+      }
+      const brief = extInfo ? (' ~' + (extInfo.requested_until || '').slice(5).replace('-', '/')) : '';
+      const reason = extInfo && extInfo.reason ? extInfo.reason.slice(0, 6) + (extInfo.reason.length > 6 ? '…' : '') : '';
+      return '<button class="name-chip" onclick="showStuPopup(\'' + s.id + '\',\'ext\')" '
+        + 'style="background:#fefce8;color:#92400e;border-color:#fde68a;text-align:left">'
+        + s.name
+        + (brief ? '<span class="name-chip-sub">' + brief + (reason ? ' · ' + reason : '') + '</span>' : '')
+        + '</button>';
+    }).join('');
+
+    // 미제출 이름 그리드
+    const notNames = notSubmitted.map(s =>
+      '<button class="name-chip" onclick="showStuPopup(\'' + s.id + '\',\'miss\')" '
+      + 'style="background:#fef2f2;color:#991b1b;border-color:#fecaca;text-align:left">' + s.name + '</button>'
+    ).join('');
 
     html += '<div class="class-block">'
-      + '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">'
+      // 헤더
+      + '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">'
       + '<span style="font-weight:700;font-size:15px">' + cls
       + ' <span style="font-weight:400;font-size:12px;color:var(--text-muted)">' + clsStu.length + '명</span></span>'
       + '<div style="display:flex;align-items:center;gap:8px">'
       + '<div class="prog" style="width:80px"><div class="prog-f" style="width:' + clsRate + '%;background:' + clsRateColor + '"></div></div>'
       + '<span style="font-size:13px;font-weight:700;color:' + clsRateColor + ';min-width:32px;text-align:right">' + clsRate + '%</span>'
       + '</div></div>'
-      + '<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">'
-      + '<div class="class-inner"><div style="font-size:11px;font-weight:700;color:#f59e0b;margin-bottom:6px">⏳ 연장 신청 (' + extStudents.length + '명)</div>' + extHtml + '</div>'
-      + '<div class="class-inner"><div style="font-size:11px;font-weight:700;color:#ef4444;margin-bottom:6px">❌ 미제출 (' + notSubmitted.length + '명)</div>' + notHtml + '</div>'
+      // 3분할
+      + '<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px">'
+      // 제출
+      + '<div class="sec-box"><div class="sec-label" style="color:#166534">✅ 제출 (' + submitted.length + '명)</div>'
+      + '<div class="name-grid">' + (subNames || '<span style="font-size:12px;color:var(--text-muted)">없음</span>') + '</div></div>'
+      // 연장
+      + '<div class="sec-box"><div class="sec-label" style="color:#92400e">⏳ 연장 (' + extended.length + '명)</div>'
+      + '<div class="name-grid">' + (extNames || '<span style="font-size:12px;color:var(--text-muted)">없음</span>') + '</div></div>'
+      // 미제출
+      + '<div class="sec-box"><div class="sec-label" style="color:#991b1b">❌ 미제출 (' + notSubmitted.length + '명)</div>'
+      + '<div class="name-grid">' + (notNames || '<span style="font-size:12px;color:var(--text-muted)">없음</span>') + '</div></div>'
       + '</div></div>';
   });
 
   container.innerHTML = html;
 }
 
-/* ── 선생님 관리 렌더링 ── */
+/* ── 학생 팝업 ── */
+const TIMES = {'10:00':'오전 10시','12:00':'낮 12시','18:00':'오후 6시','22:00':'밤 10시','23:59':'밤 12시'};
+
+function showStuPopup(stuId, mode) {
+  const stu = _students.find(s => s.id === stuId);
+  if (!stu) return;
+
+  const title = document.getElementById('popupTitle');
+  const body = document.getElementById('popupBody');
+  const phoneHtml = (label, phone) => {
+    const num = (phone || '').trim();
+    return '<div class="info-row">'
+      + '<span class="info-lbl">' + label + '</span>'
+      + '<div style="display:flex;align-items:center">'
+      + '<span class="info-val">' + (num || '없음') + '</span>'
+      + (num ? '<a href="tel:' + num + '" class="call-btn">📞 전화</a>' : '')
+      + '</div></div>';
+  };
+
+  if (mode === 'ext') {
+    // 연장 신청 팝업
+    title.textContent = '⏳ 연장 신청 · ' + stu.name;
+    // 해당 학생의 연장 정보 찾기
+    let extInfo = null;
+    for (const hw of _homeworks) {
+      if (_extMap[hw.id]?.[stuId]) { extInfo = _extMap[hw.id][stuId]; break; }
+    }
+    const until = extInfo?.requested_until || '-';
+    const time = TIMES[extInfo?.requested_time] || extInfo?.requested_time || '';
+    const reason = extInfo?.reason || '-';
+    const isParent = extInfo?.source === 'parent';
+
+    body.innerHTML = '<div class="info-row"><span class="info-lbl">신청자</span>'
+      + '<span class="info-val">' + stu.name + (isParent ? ' <span style="background:#dbeafe;color:#1e40af;padding:1px 7px;border-radius:8px;font-size:11px;font-weight:700;margin-left:4px">학부모 신청</span>' : '') + '</span></div>'
+      + '<div class="info-row"><span class="info-lbl">연장 기한</span><span class="info-val" style="color:var(--primary)">' + until + (time ? ' ' + time : '') + '</span></div>'
+      + '<div class="info-row"><span class="info-lbl">사유</span><span class="info-val" style="font-weight:400;font-size:13px;max-width:180px;text-align:right">' + reason + '</span></div>'
+      + '<div style="margin:10px 0;border-top:1px solid var(--border)"></div>'
+      + phoneHtml('학생 전화', stu.phone);
+  } else if (mode === 'miss') {
+    title.textContent = '❌ 미제출 · ' + stu.name;
+    body.innerHTML = '<div class="info-row"><span class="info-lbl">반</span><span class="info-val">' + stu.class + '</span></div>'
+      + phoneHtml('학생 전화', stu.phone);
+  } else {
+    title.textContent = '✅ 제출 완료 · ' + stu.name;
+    body.innerHTML = '<div class="info-row"><span class="info-lbl">반</span><span class="info-val">' + stu.class + '</span></div>'
+      + phoneHtml('학생 전화', stu.phone);
+  }
+
+  document.getElementById('stuPopup').classList.add('show');
+}
+function closeStuPopup() { document.getElementById('stuPopup').classList.remove('show'); }
+document.addEventListener('keydown', e => { if (e.key === 'Escape') closeStuPopup(); });
+
+/* ── 선생님 관리 ── */
 function renderTeacherTable() {
   const tbody = document.getElementById('teacherTableBody');
-  if (!_teachers.length) {
-    tbody.innerHTML = '<tr><td colspan="5" class="empty">선생님이 없습니다</td></tr>';
-    return;
-  }
+  if (!_teachers.length) { tbody.innerHTML = '<tr><td colspan="5" class="empty">선생님이 없습니다</td></tr>'; return; }
   tbody.innerHTML = _teachers.map(t => {
     const stuCount = _students.filter(s => s.teacher_name === t.name).length;
     const canDelete = !t.is_admin && stuCount === 0;
@@ -540,14 +659,12 @@ function renderTeacherTable() {
       + '</tr>';
   }).join('');
 }
-
 function togglePw(id, pw) {
   const el = document.getElementById('pw_' + id);
   if (el.textContent === '••••') { el.textContent = pw; el.style.color = 'var(--text)'; }
   else { el.textContent = '••••'; el.style.color = ''; }
 }
 
-/* ── 선생님 추가/삭제 ── */
 function openAddModal() {
   document.getElementById('newName').value = '';
   document.getElementById('newPw').value = '';
@@ -570,7 +687,6 @@ async function doAddTeacher() {
   toast(name + ' 선생님이 추가됐습니다', 'success');
   await loadAll();
 }
-
 async function doDelete(id, name, stuCount) {
   if (stuCount > 0) { alert(name + ' 선생님 담당 학생이 ' + stuCount + '명 있어서 삭제할 수 없어요.\n먼저 학생을 다른 선생님에게 이전하거나 삭제해주세요.'); return; }
   if (!confirm(name + ' 선생님을 삭제하시겠습니까?')) return;

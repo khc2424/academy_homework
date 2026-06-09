@@ -202,6 +202,25 @@
       box-shadow: 0 20px 60px rgba(0,0,0,.3);
       animation: popIn .3s cubic-bezier(.34,1.56,.64,1);
     }
+    /* 제출 이력 상세 모달 */
+    .hist-modal-ov {
+      position: fixed; inset: 0; background: rgba(0,0,0,.6);
+      z-index: 9999; display: none; align-items: flex-end; justify-content: center;
+    }
+    .hist-modal-ov.show { display: flex; }
+    .hist-modal-box {
+      background: #fff; border-radius: 20px 20px 0 0; width: 100%; max-width: 480px;
+      max-height: 85vh; overflow-y: auto;
+      box-shadow: 0 -8px 40px rgba(0,0,0,.25);
+      animation: slideUp .25s ease-out;
+    }
+    @keyframes slideUp { from{transform:translateY(40px);opacity:0} to{transform:translateY(0);opacity:1} }
+    /* 사진 전체보기 오버레이 */
+    .photo-view-ov {
+      position: fixed; inset: 0; background: rgba(0,0,0,.92);
+      z-index: 10000; display: none; align-items: center; justify-content: center;
+    }
+    .photo-view-ov.show { display: flex; }
   </style>
 </head>
 <body>
@@ -262,6 +281,25 @@
       <button id="resubmitSubmitBtn" onclick="doResubmit()" style="width:100%;padding:15px;background:#7c3aed;border:none;border-radius:12px;color:#fff;font-size:15px;font-weight:700;cursor:pointer">🔄 재제출하기</button>
     </div>
   </div>
+</div>
+
+<!-- 제출 이력 상세 모달 -->
+<div class="hist-modal-ov" id="histModal" onclick="if(event.target===this)closeHistModal()">
+  <div class="hist-modal-box">
+    <div style="padding:16px 20px;border-bottom:1px solid #f0f0f0;display:flex;align-items:center;gap:10px;position:sticky;top:0;background:#fff;z-index:1;border-radius:20px 20px 0 0">
+      <div id="histModalTitle" style="font-size:16px;font-weight:700;color:#333;flex:1"></div>
+      <button onclick="closeHistModal()" style="background:none;border:none;font-size:22px;cursor:pointer;color:#bbb;line-height:1;padding:0">✕</button>
+    </div>
+    <div id="histModalBody" style="padding:16px 20px 28px"></div>
+  </div>
+</div>
+
+<!-- 사진 전체보기 -->
+<div class="photo-view-ov" id="photoViewOv" onclick="closePhotoView()">
+  <button onclick="movePhoto(-1)" style="position:fixed;left:12px;top:50%;transform:translateY(-50%);background:rgba(255,255,255,.15);border:none;border-radius:50%;width:44px;height:44px;font-size:22px;color:#fff;cursor:pointer;z-index:10001">‹</button>
+  <img id="photoViewImg" src="" style="max-width:92vw;max-height:88vh;border-radius:8px;object-fit:contain" onclick="event.stopPropagation()">
+  <button onclick="movePhoto(1)" style="position:fixed;right:12px;top:50%;transform:translateY(-50%);background:rgba(255,255,255,.15);border:none;border-radius:50%;width:44px;height:44px;font-size:22px;color:#fff;cursor:pointer;z-index:10001">›</button>
+  <div id="photoViewCounter" style="position:fixed;bottom:24px;left:50%;transform:translateX(-50%);color:rgba(255,255,255,.7);font-size:13px"></div>
 </div>
 
 <!-- Loading Overlay -->
@@ -1241,17 +1279,113 @@ function renderHistory() {
       ? `<span style="background:#ede9fe;color:#5b21b6;padding:2px 8px;border-radius:12px;font-size:11px;font-weight:700">🔄 재제출</span>`
       : `<span style="background:#dcfce7;color:#166534;padding:2px 8px;border-radius:12px;font-size:11px;font-weight:700">✅ 제출</span>`;
     const photoCnt = (s.photo_urls || []).length || (s.photo_urls ? 1 : 0);
-    return `<div style="padding:10px 0;border-bottom:1px solid #f0f0f0;display:flex;justify-content:space-between;align-items:flex-start;gap:8px">
-      <div>
+    return `<div onclick="openHistModal('${hw.id}')" style="padding:10px 0;border-bottom:1px solid #f0f0f0;display:flex;justify-content:space-between;align-items:flex-start;gap:8px;cursor:pointer;-webkit-tap-highlight-color:rgba(0,0,0,.04)">
+      <div style="min-width:0">
         <div style="font-weight:700;color:#333;font-size:13px">${hw.subject}</div>
         <div style="font-size:12px;color:#888;margin-top:2px">기한: ${hw.due_date} · 제출: ${dateStr}</div>
       </div>
       <div style="display:flex;flex-direction:column;align-items:flex-end;gap:4px;flex-shrink:0">
         ${statusBadge}
-        ${photoCnt ? `<span style="font-size:11px;color:#888">사진 ${photoCnt}장</span>` : ''}
+        ${photoCnt ? `<span style="font-size:11px;color:#aaa">📸 ${photoCnt}장 ›</span>` : '<span style="font-size:11px;color:#ccc">보기 ›</span>'}
       </div>
     </div>`;
   }).join('');
+}
+
+// ============================================================
+//  제출 이력 상세 모달
+// ============================================================
+let _photoViewUrls = [];
+let _photoViewIdx  = 0;
+
+function openHistModal(hwId) {
+  const hws  = window._homeworks    || [];
+  const subs = window._mySubmissions || {};
+  const hw  = hws.find(h => h.id === hwId);
+  const s   = subs[hwId];
+  if (!hw || !s) return;
+
+  const DAYS = ['일','월','화','수','목','금','토'];
+  const dateStr = s.submitted_at ? (() => {
+    const d = new Date(new Date(s.submitted_at).getTime() + 9*60*60*1000);
+    return `${d.getUTCMonth()+1}/${d.getUTCDate()}(${DAYS[d.getUTCDay()]}) ${String(d.getUTCHours()).padStart(2,'0')}:${String(d.getUTCMinutes()).padStart(2,'0')}`;
+  })() : '-';
+
+  const statusBadge = s.rejection_status === 'rejected'
+    ? `<span style="background:#fee2e2;color:#991b1b;padding:3px 10px;border-radius:12px;font-size:12px;font-weight:700">❌ 반려</span>`
+    : s.rejection_status === 'resubmitted'
+    ? `<span style="background:#ede9fe;color:#5b21b6;padding:3px 10px;border-radius:12px;font-size:12px;font-weight:700">🔄 재제출</span>`
+    : `<span style="background:#dcfce7;color:#166534;padding:3px 10px;border-radius:12px;font-size:12px;font-weight:700">✅ 제출</span>`;
+
+  const cls = _loggedStudent?.class || '';
+  const clsObj = (hw.homework_classes||[]).find(c=>c.class_name===cls) || (hw.homework_classes||[])[0];
+  const hwInfo = clsObj
+    ? `<div style="background:#f8f8f8;border-radius:10px;padding:12px 14px;font-size:13px;color:#555;line-height:1.8;margin-bottom:16px">
+        📖 교재: <strong>${clsObj.textbook||'-'}</strong>${clsObj.problem_count?` (${clsObj.problem_count}문제)`:''}<br>
+        📝 내용: <strong>${clsObj.content||'-'}</strong><br>
+        📅 기한: <strong>${hw.due_date}</strong>
+      </div>` : '';
+
+  const photos = s.photo_urls || [];
+  const photoGrid = photos.length
+    ? `<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:16px">
+        ${photos.map((url, i) => `
+          <div onclick="openPhotoView(${JSON.stringify(photos)},${i})" style="aspect-ratio:1;border-radius:10px;overflow:hidden;cursor:pointer;background:#f0f0f0">
+            <img src="${url}" style="width:100%;height:100%;object-fit:cover" loading="lazy">
+          </div>`).join('')}
+      </div>`
+    : `<div style="text-align:center;color:#bbb;font-size:13px;padding:20px 0;margin-bottom:16px">첨부 파일 없음</div>`;
+
+  const memoHtml = s.submit_memo
+    ? `<div style="background:#fffde7;border:1px solid #FEE500;border-radius:10px;padding:10px 14px;font-size:13px;color:#7a5a2a;margin-bottom:8px">
+        ✏️ ${s.submit_memo}
+      </div>` : '';
+
+  const rejHtml = s.rejection_status === 'rejected' && s.rejection_reason
+    ? `<div style="background:#fee2e2;border-radius:10px;padding:10px 14px;font-size:13px;color:#991b1b;margin-bottom:8px">
+        ❌ 반려 사유: ${s.rejection_reason}
+      </div>` : '';
+
+  document.getElementById('histModalTitle').textContent = hw.subject;
+  document.getElementById('histModalBody').innerHTML = `
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px">
+      ${statusBadge}
+      <span style="font-size:12px;color:#aaa">제출: ${dateStr}</span>
+    </div>
+    ${hwInfo}
+    ${photos.length ? `<div style="font-size:13px;font-weight:700;color:#333;margin-bottom:8px">📸 제출 사진 (${photos.length}장)</div>` : ''}
+    ${photoGrid}
+    ${memoHtml}
+    ${rejHtml}`;
+
+  document.getElementById('histModal').classList.add('show');
+}
+
+function closeHistModal() {
+  document.getElementById('histModal').classList.remove('show');
+}
+
+function openPhotoView(urls, idx) {
+  _photoViewUrls = urls;
+  _photoViewIdx  = idx;
+  renderPhotoView();
+  document.getElementById('photoViewOv').classList.add('show');
+}
+
+function closePhotoView() {
+  document.getElementById('photoViewOv').classList.remove('show');
+}
+
+function renderPhotoView() {
+  document.getElementById('photoViewImg').src = _photoViewUrls[_photoViewIdx];
+  document.getElementById('photoViewCounter').textContent =
+    `${_photoViewIdx + 1} / ${_photoViewUrls.length}`;
+}
+
+function movePhoto(dir) {
+  event.stopPropagation();
+  _photoViewIdx = (_photoViewIdx + dir + _photoViewUrls.length) % _photoViewUrls.length;
+  renderPhotoView();
 }
 
 // ============================================================

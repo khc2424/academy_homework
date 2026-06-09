@@ -793,7 +793,7 @@ function compressImage(file) {
     const objUrl = URL.createObjectURL(file);
     img.onload = () => {
       URL.revokeObjectURL(objUrl);
-      const MAX = 1400; // 최대 1400px (숙제 확인용으로 충분한 해상도)
+      const MAX = 1200; // 숙제 확인용 — 1200px로 충분
       let w = img.width, h = img.height;
       if (w > MAX || h > MAX) {
         if (w >= h) { h = Math.round(h * MAX / w); w = MAX; }
@@ -805,10 +805,18 @@ function compressImage(file) {
       canvas.toBlob(blob => {
         const fname = file.name.replace(/\.[^.]+$/, '.jpg');
         resolve(new File([blob], fname, { type: 'image/jpeg' }));
-      }, 'image/jpeg', 0.78);
+      }, 'image/jpeg', 0.72);
     };
-    img.onerror = () => { URL.revokeObjectURL(objUrl); resolve(file); }; // 실패 시 원본
+    img.onerror = () => { URL.revokeObjectURL(objUrl); resolve(file); };
     img.src = objUrl;
+  });
+}
+
+function fileToDataURL(file) {
+  return new Promise(resolve => {
+    const reader = new FileReader();
+    reader.onload = e => resolve(e.target.result);
+    reader.readAsDataURL(file);
   });
 }
 
@@ -816,24 +824,18 @@ async function handlePhotos(event) {
   const files = [...event.target.files];
   const remaining = 50 - selectedPhotos.length;
   if (remaining <= 0) { alert('파일은 최대 50개까지 첨부할 수 있어요'); return; }
-  const toAdd = files.slice(0, remaining);
-  for (const file of toAdd) {
-    const isPdf = file.type === 'application/pdf';
-    const isImg = file.type.startsWith('image/');
-    if (!isPdf && !isImg) continue;
-    if (isPdf) {
-      selectedPhotos.push({ file, preview: null, isPdf: true, name: file.name });
-      renderPhotoGrid();
-    } else {
-      const compressed = await compressImage(file);
-      const reader = new FileReader();
-      reader.onload = e => {
-        selectedPhotos.push({ file: compressed, preview: e.target.result, isPdf: false });
-        renderPhotoGrid();
-      };
-      reader.readAsDataURL(compressed);
+  const toAdd = files.slice(0, remaining).filter(f => f.type.startsWith('image/') || f.type === 'application/pdf');
+  // 모든 파일 병렬 압축
+  const results = await Promise.all(toAdd.map(async file => {
+    if (file.type === 'application/pdf') {
+      return { file, preview: null, isPdf: true, name: file.name };
     }
-  }
+    const compressed = await compressImage(file);
+    const preview = await fileToDataURL(compressed);
+    return { file: compressed, preview, isPdf: false };
+  }));
+  selectedPhotos.push(...results);
+  renderPhotoGrid();
   event.target.value = '';
 }
 
@@ -926,19 +928,23 @@ async function submitHomework() {
       document.getElementById('successTitle').textContent = '연장 신청 완료!';
       document.getElementById('successMsg').innerHTML = `<strong>${studentName}</strong> 학생의 연장 신청이<br>선생님께 전달되었습니다.<br><br>📋 <strong>${extLabel}</strong>까지 제출 예정`;
     } else {
-      // 숙제 제출
+      // 숙제 제출 — 모든 파일 병렬 업로드
       const memo = document.getElementById('memo').value.trim();
-      const photoUrls = [];
-      for (let i = 0; i < selectedPhotos.length; i++) {
-        setProgress(Math.round((i / selectedPhotos.length) * 80), `파일 업로드 중... (${i+1}/${selectedPhotos.length})`);
-        const file = selectedPhotos[i].file;
+      const total = selectedPhotos.length;
+      let completed = 0;
+      const baseTs = Date.now();
+      setProgress(0, `업로드 준비 중...`);
+      const photoUrls = await Promise.all(selectedPhotos.map(async (photo, i) => {
+        const file = photo.file;
         const ext = file.name.split('.').pop() || 'jpg';
-        const path = `submissions/${hwId}/${studentId}_${Date.now()}_${i}.${ext}`;
+        const path = `submissions/${hwId}/${studentId}_${baseTs}_${i}.${ext}`;
         const { error } = await db.storage.from(BUCKET_NAME).upload(path, file, { upsert: true });
         if (error) throw error;
+        completed++;
+        setProgress(Math.round((completed / total) * 80), `업로드 중... (${completed}/${total})`);
         const { data: urlData } = db.storage.from(BUCKET_NAME).getPublicUrl(path);
-        photoUrls.push(urlData.publicUrl);
-      }
+        return urlData.publicUrl;
+      }));
       setProgress(90, '제출 정보 저장 중...');
       // _mySubmissions가 로드된 경우 재사용, 아니면 DB 조회
       const cached = window._mySubmissions ? window._mySubmissions[hwId] : null;

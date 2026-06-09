@@ -399,6 +399,19 @@ var currentTeacher = null;
         </table>
       </div>
     </div>
+
+    <!-- 제출 완료 메시지 설정 -->
+    <div class="card-c" style="margin-top:8px">
+      <div class="card-h">💬 학생 제출 완료 메시지</div>
+      <div style="padding:16px 20px">
+        <p style="font-size:13px;color:var(--text-sub);margin-bottom:10px">학생이 숙제를 제출하면 보이는 메시지입니다. 비워두면 기본 메시지가 표시됩니다.</p>
+        <textarea id="submissionMsgInput" class="fc" rows="3" placeholder="예) 채점을 꼭 하십시다. 제발." style="resize:vertical;font-size:13.5px;line-height:1.6"></textarea>
+        <div style="display:flex;align-items:center;gap:10px;margin-top:10px">
+          <button class="btn-p" onclick="saveSubmissionMsg()">저장</button>
+          <span id="submissionMsgStatus" style="font-size:13px;color:var(--text-muted)"></span>
+        </div>
+      </div>
+    </div>
   </div>
 
   <!-- DAILY MISSING REPORT -->
@@ -615,6 +628,23 @@ function teacherLogout() {
   localStorage.removeItem(TEACHER_AUTH_KEY);
   location.reload();
 }
+
+// ── 제출 완료 메시지 설정 ──────────────────────────────────────
+async function loadSubmissionMsg() {
+  if (!currentTeacher?.name) return;
+  const { data } = await db.from('teachers').select('submission_message').eq('name', currentTeacher.name).single();
+  const inp = document.getElementById('submissionMsgInput');
+  if (inp) inp.value = data?.submission_message || '';
+}
+async function saveSubmissionMsg() {
+  if (!currentTeacher?.name) return;
+  const msg = document.getElementById('submissionMsgInput').value.trim();
+  const statusEl = document.getElementById('submissionMsgStatus');
+  statusEl.textContent = '저장 중...';
+  const { error } = await db.from('teachers').update({ submission_message: msg || null }).eq('name', currentTeacher.name);
+  if (error) { statusEl.textContent = '❌ 저장 실패: ' + error.message; }
+  else { statusEl.textContent = '✅ 저장됐습니다'; setTimeout(() => { statusEl.textContent = ''; }, 2500); }
+}
 function applyTeacherUI() {
   if (!currentTeacher) return;
   const label = currentTeacher.isAdmin ? '관리자' : currentTeacher.name + 'T';
@@ -828,7 +858,7 @@ function showPage(name) {
   if(name==='dashboard') { loadSubmissions().then(()=>{ renderDashboard(); }); }
   if(name==='photos') { loadPhotos(); }
   if(name==='homework') renderHomework();
-  if(name==='students') renderStudents();
+  if(name==='students') { renderStudents(); loadSubmissionMsg(); }
   if(name==='message'){window._msgStudents=window._msgStudents||{};renderMessages();}
   if(name==='extensions'){loadExtensions().then(renderExtensions);}
   if(name==='grades') renderGrades();

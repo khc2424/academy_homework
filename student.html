@@ -932,9 +932,18 @@ async function submitHomework() {
       document.getElementById('successTitle').textContent = isResubmit ? '재제출되었습니다!' : '제출되었습니다!';
       document.getElementById('successMsg').innerHTML = isResubmit
         ? `<strong>${studentName}</strong> 학생의 숙제가 재제출되었습니다.<br>선생님 확인을 기다려 주세요! 😊`
-        : _loggedStudent?.teacher_name === '김형철'
-          ? `<strong>${studentName}</strong> 학생의 숙제가 선생님께 전달되었습니다.<br><br><span style="display:inline-block;background:#fee2e2;border-radius:10px;padding:10px 16px;font-size:13px;color:#991b1b;font-weight:700;line-height:1.7">채점을 꼭 하십시다. 제발.<br>채점 안 한 거 걸리는 순간 관자놀이 부수겠습니다.</span>`
-          : `<strong>${studentName}</strong> 학생의 숙제가 선생님께 전달되었습니다.<br><br><span style="display:inline-block;background:#fee2e2;border-radius:10px;padding:8px 14px;font-size:13px;color:#991b1b;font-weight:700">⚠️ 채점까지 완료 꼭 하시기 바랍니다!</span>`;
+        : await (async () => {
+            // DB에서 선생님 맞춤 메시지 로드
+            let customMsg = null;
+            if (_loggedStudent?.teacher_name) {
+              const { data: tData } = await db.from('teachers').select('submission_message').eq('name', _loggedStudent.teacher_name).single();
+              customMsg = tData?.submission_message || null;
+            }
+            const msgHtml = customMsg
+              ? `<span style="display:inline-block;background:#fee2e2;border-radius:10px;padding:10px 16px;font-size:13px;color:#991b1b;font-weight:700;line-height:1.7;white-space:pre-wrap">${customMsg}</span>`
+              : `<span style="display:inline-block;background:#fee2e2;border-radius:10px;padding:8px 14px;font-size:13px;color:#991b1b;font-weight:700">⚠️ 채점까지 완료해야 숙제 인정!</span>`;
+            return `<strong>${studentName}</strong> 학생의 숙제가 선생님께 전달되었습니다.<br><br>${msgHtml}`;
+          })();
     }
     setTimeout(showSuccess, 500);
   } catch (err) {

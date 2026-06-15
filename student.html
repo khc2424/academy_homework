@@ -367,6 +367,12 @@
       <div class="error-msg" id="hwErr">숙제를 선택해주세요</div>
     </div>
     <div id="hwDetail" style="display:none;background:#f8f8f8;border-radius:10px;padding:12px;font-size:13px;color:#555;line-height:1.7"></div>
+    <div id="multiHwSection" style="display:none;margin-top:10px">
+      <div style="display:flex;align-items:center;gap:6px;cursor:pointer;color:#3C1E1E;font-size:13px;font-weight:700" onclick="toggleMultiHw()">
+        <span id="multiHwToggleIcon">▶</span> 다른 숙제도 같은 사진으로 함께 제출
+      </div>
+      <div id="multiHwList" style="display:none;margin-top:8px;padding:10px;background:#fffde7;border:1px solid #FEE500;border-radius:10px;font-size:13px"></div>
+    </div>
   </div>
 
   <!-- Step 2: 제출 방식 선택 -->
@@ -619,6 +625,43 @@ function selectType(type) {
   document.getElementById('cardMemo').style.display  = type==='submit' ? 'block' : 'none';
   document.getElementById('submitBtn').style.display = 'block';
   document.getElementById('submitBtn').textContent = type==='submit' ? '✅ 숙제 제출하기' : '📅 연장 신청하기';
+  renderExtraHwOptions();
+}
+
+// ============================================================
+//  여러 숙제 동시 제출 (같은 사진을 두 개 이상의 숙제에 함께 제출)
+// ============================================================
+function toggleMultiHw() {
+  const list = document.getElementById('multiHwList');
+  const icon = document.getElementById('multiHwToggleIcon');
+  const show = list.style.display === 'none';
+  list.style.display = show ? 'block' : 'none';
+  icon.textContent = show ? '▼' : '▶';
+}
+
+function renderExtraHwOptions() {
+  const section = document.getElementById('multiHwSection');
+  const list = document.getElementById('multiHwList');
+  const hwSel = document.getElementById('homeworkSelect');
+  const primaryId = hwSel.value;
+
+  if (submissionType !== 'submit' || !primaryId) {
+    section.style.display = 'none';
+    return;
+  }
+  const others = [...hwSel.options].filter(o => o.value && o.value !== primaryId);
+  if (!others.length) {
+    section.style.display = 'none';
+    return;
+  }
+  // 기존에 체크된 항목 유지
+  const prevChecked = new Set([...document.querySelectorAll('.extra-hw-chk:checked')].map(c => c.value));
+  section.style.display = 'block';
+  list.innerHTML = others.map(o => `
+    <label style="display:flex;align-items:center;gap:8px;padding:6px 2px;cursor:pointer;font-size:13px;color:#555">
+      <input type="checkbox" class="extra-hw-chk" value="${o.value}" ${prevChecked.has(o.value)?'checked':''} style="width:18px;height:18px;flex-shrink:0;accent-color:#FEE500">
+      <span>${o.textContent}</span>
+    </label>`).join('');
 }
 
 // ============================================================
@@ -747,6 +790,7 @@ document.getElementById('homeworkSelect').addEventListener('change', function() 
   } else {
     detail.style.display = 'none';
   }
+  renderExtraHwOptions();
 });
 
 // ============================================================
@@ -946,36 +990,52 @@ async function submitHomework() {
         return urlData.publicUrl;
       }));
       setProgress(90, '제출 정보 저장 중...');
-      // _mySubmissions가 로드된 경우 재사용, 아니면 DB 조회
-      const cached = window._mySubmissions ? window._mySubmissions[hwId] : null;
-      const { data: existing } = cached
-        ? { data: cached }
-        : await db.from('submissions').select('id,rejection_status').eq('homework_id', hwId).eq('student_id', studentId).maybeSingle();
-      if (existing) {
-        // 반려된 숙제를 재제출하는 경우 rejection_status → 'resubmitted'
-        const wasRejected = existing.rejection_status === 'rejected';
-        const updateFields = {
-          submitted: true, submitted_at: new Date().toISOString(),
-          photo_urls: photoUrls, submit_memo: memo,
-          reviewed: false
-        };
-        if (wasRejected) updateFields.rejection_status = 'resubmitted';
-        const { error: upErr } = await db.from('submissions').update(updateFields).eq('id', existing.id);
-        if (upErr) throw upErr;
-      } else {
-        const { error: inErr } = await db.from('submissions').insert({
-          homework_id: hwId, student_id: studentId,
-          submitted: true, submitted_at: new Date().toISOString(),
-          photo_urls: photoUrls, submit_memo: memo
-        });
-        if (inErr) throw inErr;
+
+      // 여러 숙제에 동시 제출 — 체크된 추가 숙제 목록
+      const extraHwIds = [...document.querySelectorAll('.extra-hw-chk:checked')].map(c => c.value);
+      const allHwIds = [hwId, ...extraHwIds];
+
+      let isResubmit = false;
+      for (const targetHwId of allHwIds) {
+        // _mySubmissions가 로드된 경우 재사용, 아니면 DB 조회
+        // (중복 레코드가 있어도 에러 없이 처리되도록 단일행 대신 배열로 조회 후 첫 행 사용)
+        const cached = window._mySubmissions ? window._mySubmissions[targetHwId] : null;
+        let existing = cached || null;
+        if (!cached) {
+          const { data: existList } = await db.from('submissions').select('id,rejection_status')
+            .eq('homework_id', targetHwId).eq('student_id', studentId)
+            .order('submitted', { ascending: false })
+            .order('submitted_at', { ascending: false, nullsFirst: false });
+          existing = (existList && existList[0]) || null;
+        }
+        if (existing) {
+          // 반려된 숙제를 재제출하는 경우 rejection_status → 'resubmitted'
+          const wasRejected = existing.rejection_status === 'rejected';
+          const updateFields = {
+            submitted: true, submitted_at: new Date().toISOString(),
+            photo_urls: photoUrls, submit_memo: memo,
+            reviewed: false
+          };
+          if (wasRejected) updateFields.rejection_status = 'resubmitted';
+          const { error: upErr } = await db.from('submissions').update(updateFields).eq('id', existing.id);
+          if (upErr) throw upErr;
+          if (targetHwId === hwId && wasRejected) isResubmit = true;
+        } else {
+          const { error: inErr } = await db.from('submissions').insert({
+            homework_id: targetHwId, student_id: studentId,
+            submitted: true, submitted_at: new Date().toISOString(),
+            photo_urls: photoUrls, submit_memo: memo
+          });
+          if (inErr) throw inErr;
+        }
       }
-      const isResubmit = existing && existing.rejection_status === 'rejected';
+
+      const multiNote = allHwIds.length > 1 ? `<br><span style="font-size:12px;color:#888">📚 선택한 ${allHwIds.length}개 숙제에 모두 제출되었습니다.</span>` : '';
       setProgress(100, '완료!');
       document.getElementById('successIcon').textContent = isResubmit ? '🔄' : '✅';
       document.getElementById('successTitle').textContent = isResubmit ? '재제출되었습니다!' : '제출되었습니다!';
       document.getElementById('successMsg').innerHTML = isResubmit
-        ? `<strong>${studentName}</strong> 학생의 숙제가 재제출되었습니다.<br>선생님 확인을 기다려 주세요! 😊`
+        ? `<strong>${studentName}</strong> 학생의 숙제가 재제출되었습니다.<br>선생님 확인을 기다려 주세요! 😊${multiNote}`
         : await (async () => {
             // DB에서 선생님 맞춤 메시지 로드
             let customMsg = null;
@@ -986,7 +1046,7 @@ async function submitHomework() {
             const msgHtml = customMsg
               ? `<span style="display:inline-block;background:#fee2e2;border-radius:10px;padding:10px 16px;font-size:13px;color:#991b1b;font-weight:700;line-height:1.7;white-space:pre-wrap">${customMsg}</span>`
               : `<span style="display:inline-block;background:#fee2e2;border-radius:10px;padding:8px 14px;font-size:13px;color:#991b1b;font-weight:700">⚠️ 채점까지 완료해야 숙제 인정!</span>`;
-            return `<strong>${studentName}</strong> 학생의 숙제가 선생님께 전달되었습니다.<br><br>${msgHtml}`;
+            return `<strong>${studentName}</strong> 학생의 숙제가 선생님께 전달되었습니다.<br><br>${msgHtml}${multiNote}`;
           })();
     }
     setTimeout(showSuccess, 500);
@@ -1051,6 +1111,11 @@ function resetForm() {
   renderPhotoGrid();
   document.getElementById('submitBtn').disabled = false;
   document.getElementById('uploadArea').style.display = 'block';
+  // 다중 숙제 제출 섹션 초기화
+  document.getElementById('multiHwSection').style.display = 'none';
+  document.getElementById('multiHwList').innerHTML = '';
+  document.getElementById('multiHwList').style.display = 'none';
+  document.getElementById('multiHwToggleIcon').textContent = '▶';
 }
 
 // ============================================================

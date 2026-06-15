@@ -597,6 +597,8 @@ const DEFAULT_TEMPLATE =
 const { createClient } = supabase;
 const db = createClient(SUPABASE_URL, SUPABASE_KEY);
 let _students=[], _homeworks=[], _submissions={}, _photoSubs=[], _extensions=[];
+let _submissionsLoadedAt = 0; // loadSubmissions() 캐시 시각 (ms)
+const SUBMISSIONS_CACHE_MS = 8000; // 8초 이내 재호출은 캐시 사용 (반복 클릭/조회 시 불필요한 전체 재조회 방지)
 let lbImages=[], lbIdx=0;
 let clsRowCnt=0;
 
@@ -710,7 +712,13 @@ async function loadHomeworks() {
     _homeworks = data || [];
   }
 }
-async function loadSubmissions() {
+async function loadSubmissions(force) {
+  // 짧은 시간 안에 여러 화면(주말 보고, 일일 현황, 화살표 네비게이션 등)에서
+  // 반복 호출되어 매번 전체 테이블을 다시 받아오면 느려지므로, 최근에 불러온
+  // 데이터가 있으면 캐시를 재사용합니다. (force=true면 무조건 새로 조회)
+  if (!force && _submissionsLoadedAt && (Date.now() - _submissionsLoadedAt < SUBMISSIONS_CACHE_MS)) {
+    return;
+  }
   // ⚠️ Supabase/PostgREST는 기본적으로 한 번에 최대 1000행만 반환합니다.
   // submissions 테이블이 1000행을 넘으면 최근 제출 기록이 누락되어
   // "제출했는데 미제출로 표시되는" 오류가 생길 수 있으므로, 전체 행을
@@ -725,6 +733,7 @@ async function loadSubmissions() {
     if (!page || page.length < PAGE) break;
     from += PAGE;
   }
+  _submissionsLoadedAt = Date.now();
   _submissions = {};
   // 같은 학생 + 같은 숙제에 중복 레코드가 존재하는 경우, "제출완료" 기록을 우선으로 채택
   // (예: 채점/메모 저장 시 의도치 않게 submitted=false인 빈 레코드가 추가로 생긴 경우 대비)
@@ -1311,7 +1320,7 @@ async function markAsSubmitted(hwId, stuId, refreshType) {
         submit_memo: note
       });
     }
-    await loadSubmissions();
+    await loadSubmissions(true);
     toast('✅ 제출완료로 표시되었습니다');
     if (refreshType === 'missing') renderMissing();
     else if (refreshType === 'daily') loadDailyReport();
@@ -2045,7 +2054,7 @@ async function saveGrade(hwId,stuId,val){
   const ex=await findSubmissionRow(hwId,stuId);
   if(ex)await db.from('submissions').update({score:val===''?null:Number(val)}).eq('id',ex.id);
   else await db.from('submissions').insert({homework_id:hwId,student_id:stuId,score:val===''?null:Number(val),submitted:false});
-  await loadSubmissions();
+  await loadSubmissions(true);
   const sub=_submissions[hwId]||{};const info=sub[stuId]||{};const sc=info.score;
   const badge=document.getElementById('gb_'+stuId);
   if(badge){if(sc===null||sc===undefined){badge.innerHTML='<span style="color:var(--text-muted)">-</span>';return;}const p=Number(sc)>=60;badge.innerHTML=`<span class="${p?'bdg-p':'bdg-f'}">${p?'✓ 합격':'✗ 불합격'}</span>`;}
@@ -2221,7 +2230,7 @@ function renderDashMissing() {
 async function loadMissing() {
   const btn = document.querySelector('#page-missing .btn-o[onclick="loadMissing()"]');
   if (btn) { btn.textContent = '⏳ 로딩중...'; btn.disabled = true; }
-  await loadSubmissions();
+  await loadSubmissions(true);
   populateSelects();
   renderMissing();
   if (btn) { btn.textContent = '🔄 새로고침'; btn.disabled = false; }
@@ -2526,7 +2535,7 @@ async function loadDailyReport() {
         const extUntil = extMap[`${s.id}_${hw.id}`];
         if(extUntil) {
           const d = extUntil.slice(5).replace('-','/');
-          return `<span style="background:#fef3c7;color:#92400e;padding:3px 10px;border-radius:99px;font-size:12px;font-weight:600;display:inline-flex;align-items:center;gap:3px">${s.name}<span style="font-size:10px;background:#f59e0b;color:#fff;padding:1px 5px;border-radius:5px;font-weight:700">~${d}</span></span>`;
+          return `<span style="background:#fef3c7;color:#92400e;padding:3px 6px 3px 10px;border-radius:99px;font-size:12px;font-weight:600;display:inline-flex;align-items:center;gap:5px">${s.name}<span style="font-size:10px;background:#f59e0b;color:#fff;padding:1px 5px;border-radius:5px;font-weight:700">~${d}</span><button onclick="markAsSubmitted('${hw.id}','${s.id}','daily')" style="background:#fff;border:1px solid #fcd34d;color:#92400e;border-radius:99px;font-size:10px;font-weight:700;padding:1px 7px;cursor:pointer;line-height:1.5">확인</button></span>`;
         }
         return `<span style="background:#fee2e2;color:#991b1b;padding:3px 6px 3px 10px;border-radius:99px;font-size:12px;font-weight:600;display:inline-flex;align-items:center;gap:5px">${s.name}<button onclick="markAsSubmitted('${hw.id}','${s.id}','daily')" style="background:#fff;border:1px solid #fca5a5;color:#991b1b;border-radius:99px;font-size:10px;font-weight:700;padding:1px 7px;cursor:pointer;line-height:1.5">확인</button></span>`;
       }).join('');
